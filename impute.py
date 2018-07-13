@@ -1,0 +1,102 @@
+import sys
+sys.path.insert(
+    0, "/afs/umich.edu/user/k/s/kshedden/statsmodels_fork/statsmodels")
+
+import numpy as np
+import os
+import pandas as pd
+from data_tools import get_data
+from statsmodels.regression.process_reg import ProcessRegression
+
+impvar = sys.argv[1]
+if impvar not in ("HT", "WAZ", "HAZ", "BAZ", "WT"):
+    msg = "Unknown imputation variable"
+    sys.exit(msg)
+
+# Ages to impute
+imp_ages = np.r_[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+# Number of imputed data sets
+n_imp = 20
+
+# Storage for results
+dx = [None, None]
+preg = [None, None]
+rslt = [None, None]
+
+# Fit a Gaussian process model separately to females and males.
+for female in 0, 1:
+
+    dx[female] = get_data(female, impvar)
+
+    # Fit the model -- note that degrees of freedom are fixed here.
+    # TODO: are these good choices of the df values?
+    preg[female] = ProcessRegression.from_formula(
+        "%s ~ bs(Age, 4)" % impvar,
+        scale_formula="bs(Age, 4)",
+        smooth_formula="bs(Age, 4)",
+        time="Age",
+        groups="ID",
+        data=dx[female])
+
+    rslt[female] = preg[female].fit()
+
+# Open files for storing all the imputed data.
+out = []
+for j in range(n_imp):
+    out.append(
+        open(os.path.join("imputed_data", "%s_imp_%d.csv" % (impvar, j)), "w"))
+    out[j].write("ID," + ",".join(["%s%d" % (impvar, a) for a in imp_ages]))
+    out[j].write(",")
+    out[j].write(",".join(["Mean%d" % a for a in imp_ages]))
+    out[j].write("\n")
+
+# Generate imputed data for females and males separately.
+for female in False, True:
+
+    # Model parameters
+    mnpar = rslt[female].mean_params
+    scpar = rslt[female].scale_params
+    smpar = rslt[female].smooth_params
+
+    # Remove the mean
+    exog = pd.DataFrame({"Age": imp_ages})
+    mean_impvar = rslt[female].predict(exog)
+    dx[female]["resid"] = dx[female][impvar] - rslt[female].predict()
+
+    # Loop over subjects
+    for idx, v in dx[female].groupby("ID"):
+
+        # Create an age variable for all the ages we are concerned
+        # with for this subject -- first the observed ages, then the
+        # ages to be imputed.
+        ages = v.Age.copy().values
+        ages = np.concatenate((ages, imp_ages))
+        dv = pd.DataFrame({"Age": ages})
+
+        # Get the covariance matrix for all relevant ages.
+        cm = preg[female].covariance(ages, scpar, smpar, dv, dv)
+        p = dv.shape[0] - len(imp_ages)
+        cm00 = cm[p:, p:]
+        cm01 = cm[p:, 0:p]
+        cm11 = cm[0:p, 0:p]
+
+        # The mean for imputed values
+        z = mean_impvar + np.dot(cm01, np.linalg.solve(cm11, v.resid))
+
+        # The covariance matrix for imputed values
+        va = cm00 - np.dot(cm01, np.linalg.solve(cm11, cm01.T))
+        vr = np.linalg.cholesky(va)
+
+        # Generate the imputed values
+        for j in range(n_imp):
+            ze = z + np.dot(vr, np.random.normal(size=vr.shape[0]))
+            out[j].write("%d," % idx)
+            out[j].write(",".join(["%.3f" % u for u in ze]))
+            out[j].write(",")
+            out[j].write(",".join(["%.3f" % u for u in mean_impvar]))
+            out[j].write("\n")
+
+# Close all the files
+for j in range(n_imp):
+    out[j].close()
