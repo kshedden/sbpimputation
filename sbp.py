@@ -14,7 +14,7 @@ import numpy as np
 from config import *
 
 impvar = sys.argv[1]
-if impvar not in ("HT", "WAZ", "HAZ", "BAZ", "WT"):
+if impvar not in allowed_outcomes:
     msg = "Unknown imputation variable"
     sys.exit(msg)
 
@@ -72,7 +72,7 @@ class mimi(object):
         di["years_low"] = (dd < low_thresh).sum(1)
         di["min"] = dd.min(1)
 
-        vb = ["ID"]
+        vb = ["ID", "%s10" % impvar]
         vb += [(impvar + "_%s") % x for x in "ilq"]
         vb += [(impvar + "_d%s") % x for x in "ilq"]
         vb += ["years_low", "min"]
@@ -87,8 +87,8 @@ fml = "SBMean23 ~ Female*(age_x + I(age_x**2) + I(age_x**3)) + HT_cen + Female*B
 
 fml_lin = fml + "%s_i + %s_l + %s_q" % (impvar, impvar, impvar)
 fml_dlin = fml + "%s_di + %s_dl + %s_dq" % (impvar, impvar, impvar)
-fml_min = fml + "min"
-fml_yrlow = fml + "years_low"
+fml_min = fml + ("%s10 + min" % impvar)
+fml_yrlow = fml + ("%s10 + years_low" % impvar)
 
 out = open("imp_%s.txt" % impvar, "w")
 
@@ -141,6 +141,8 @@ for fml in fml_dlin, fml_min, fml_yrlow, fml_lin:
             mx[k, 1] = mp[i] + mp[l] * ax[k] + mp[q] * ax[k]**2
             mx[k, 2] = np.sqrt(np.dot(d, np.dot(cm, d)))
         mx = pd.DataFrame(mx, columns=["age", "coeff", "se"], index=ag)
+        out.write("BEGIN-TRAJECTORY\n")
         out.write(mx.to_string())
+        out.write("\nEND-TRAJECTORY\n")
 
 out.close()

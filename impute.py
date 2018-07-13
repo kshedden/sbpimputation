@@ -1,21 +1,38 @@
+"""
+Generate imputed data for one stature variable.  Impute to a grid of ages, 1, 2, ... maxage,
+where maxage is defined in config.py.
+
+Call the script with the name of the variable to be imputed, e.g.
+
+> python impute.py HT
+> python impute.py BAZ
+"""
+
 import sys
 sys.path.insert(
     0, "/afs/umich.edu/user/k/s/kshedden/statsmodels_fork/statsmodels")
 
+import matplotlib
+matplotlib.use('agg')
 import numpy as np
 import os
 import pandas as pd
 from data_tools import get_data
 from statsmodels.regression.process_reg import ProcessRegression
+import matplotlib.pyplot as plt
 from config import *
+from matplotlib.backends.backend_pdf import PdfPages
 
+# Make sure that we are imputing a valid variable.
 impvar = sys.argv[1]
 if impvar not in allowed_outcomes:
     msg = "Unknown imputation variable"
     sys.exit(msg)
 
+pdf = PdfPages("covmat_%s.pdf" % impvar)
+
 # Ages to impute
-imp_ages = np.arange(1, maxage+1)
+imp_ages = np.arange(1, maxage + 1)
 
 # Storage for results
 dx = [None, None]
@@ -39,6 +56,24 @@ for female in 0, 1:
         data=dx[female])
 
     rslt[female] = preg[female].fit()
+
+    # Plot the fitted covariance matrix
+    ages = np.linspace(1, maxage, 100)
+    dv = pd.DataFrame({"Age": ages})
+    mnpar = rslt[female].mean_params
+    scpar = rslt[female].scale_params
+    smpar = rslt[female].smooth_params
+    cm = preg[female].covariance(ages, scpar, smpar, dv, dv)
+    for k in 0, 1:
+        # First plot covariance, then correlation
+        plt.clf()
+        plt.imshow(cm, interpolation='nearest', extent=[1, maxage, maxage, 1])
+        plt.xlabel("Age", size=15)
+        plt.ylabel("Age", size=15)
+        plt.title("%s (%s) %s" % (impvar, ["males", "females"][female], ["covariance", "correlation"][k]))
+        pdf.savefig()
+        s = np.sqrt(np.diag(cm))
+        cm /= np.outer(s, s)
 
 # Open files for storing all the imputed data.
 out = []
@@ -85,7 +120,13 @@ for female in False, True:
 
         # The covariance matrix for imputed values
         va = cm00 - np.dot(cm01, np.linalg.solve(cm11, cm01.T))
-        vr = np.linalg.cholesky(va)
+
+        # The square root of the covariance matrix, warn if degenerate
+        e, v = np.linalg.eig(va)
+        e = e * (e >= 0)
+        if np.any(e == 0):
+            print("Covariance matrix is singular")
+        vr = v * np.sqrt(e)
 
         # Generate the imputed values
         for j in range(n_imp):
@@ -99,3 +140,5 @@ for female in False, True:
 # Close all the files
 for j in range(n_imp):
     out[j].close()
+
+pdf.close()

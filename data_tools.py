@@ -14,7 +14,8 @@ df["BAZ"] = df.BAZ_15
 df["WAZ"] = df.WAZ_15
 df["HT"] = df["Ht_Ave"]
 
-df = df.loc[df.Age <= maxage, :]
+# Use data one year beyond the imputation range.
+df = df.loc[df.Age <= maxage + 1, :]
 
 
 def get_data(female, impvar):

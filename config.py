@@ -1,5 +1,5 @@
 # Maximum age for the early childhood window
-maxage = 11
+maxage = 10
 
 # Number of imputated data sets
 n_imp = 20
