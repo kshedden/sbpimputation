@@ -142,7 +142,7 @@ for fml in fml_dlin, fml_min, fml_yrlow, fml_lin:
             mx[k, 2] = np.sqrt(np.dot(d, np.dot(cm, d)))
         mx = pd.DataFrame(mx, columns=["age", "coeff", "se"], index=ag)
         out.write("BEGIN-TRAJECTORY\n")
-        out.write(mx.to_string())
+        out.write(mx.to_string(index=False))
         out.write("\nEND-TRAJECTORY\n")
 
 out.close()
