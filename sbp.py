@@ -7,8 +7,7 @@ import statsmodels.api as sm
 from statsmodels.imputation.bayes_mi import MI
 import os
 import numpy as np
-
-n_imp = 20
+from config import *
 
 impvar = sys.argv[1]
 if impvar not in ("HT", "WAZ", "HAZ", "BAZ", "WT"):

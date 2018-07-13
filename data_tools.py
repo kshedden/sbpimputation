@@ -1,6 +1,5 @@
 import pandas as pd
-
-maxage = 11
+from config import *
 
 # Read the cohort file
 pa = "/nfs/kshedden/Beverly_Strassmann/Cohort_2018.csv.gz"

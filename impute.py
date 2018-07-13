@@ -7,17 +7,15 @@ import os
 import pandas as pd
 from data_tools import get_data
 from statsmodels.regression.process_reg import ProcessRegression
+from config import *
 
 impvar = sys.argv[1]
-if impvar not in ("HT", "WAZ", "HAZ", "BAZ", "WT"):
+if impvar not in allowed_outcomes:
     msg = "Unknown imputation variable"
     sys.exit(msg)
 
 # Ages to impute
-imp_ages = np.r_[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-
-# Number of imputed data sets
-n_imp = 20
+imp_ages = np.arange(1, maxage+1)
 
 # Storage for results
 dx = [None, None]
@@ -31,6 +29,7 @@ for female in 0, 1:
 
     # Fit the model -- note that degrees of freedom are fixed here.
     # TODO: are these good choices of the df values?
+    # TODO: maybe this should be refit each imputation cycle with bootstrapped data
     preg[female] = ProcessRegression.from_formula(
         "%s ~ bs(Age, 4)" % impvar,
         scale_formula="bs(Age, 4)",
