@@ -71,6 +71,7 @@ for female in 0, 1:
         plt.xlabel("Age", size=15)
         plt.ylabel("Age", size=15)
         plt.title("%s (%s) %s" % (impvar, ["males", "females"][female], ["covariance", "correlation"][k]))
+        plt.colorbar()
         pdf.savefig()
         s = np.sqrt(np.diag(cm))
         cm /= np.outer(s, s)
