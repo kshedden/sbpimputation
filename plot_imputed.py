@@ -1,3 +1,7 @@
+"""
+Plot a subset of the imputed trajectories together with the actual data.
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -9,7 +13,7 @@ impvar = "BAZ"
 
 pdf = PdfPages("plot_imputed_%s.pdf" % impvar)
 
-# Plot 5 curves to avoid overplotting
+# Plot only a few curves to avoid overplotting
 di = []
 for j in range(5):
     di.append(pd.read_csv(os.path.join("imputed_data", "%s_imp_%d.csv" % (impvar, j))))

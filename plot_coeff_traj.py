@@ -1,3 +1,8 @@
+"""
+Generate plots of the time-varying coefficients for stature variables
+as functions of age.
+"""
+
 import numpy as np
 import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages

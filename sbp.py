@@ -1,3 +1,7 @@
+"""
+Fit models for outcome variables relative to exposures.
+"""
+
 import sys
 sys.path.insert(
     0, "/afs/umich.edu/user/k/s/kshedden/statsmodels_fork/statsmodels")
