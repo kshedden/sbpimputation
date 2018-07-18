@@ -1,3 +1,8 @@
+"""
+Use kernel methods to estimate the covariances and cross covariances among
+two variables observed at arbitrary time points within subjects.
+"""
+
 import sys
 sys.path.insert(0, "/afs/umich.edu/user/k/s/kshedden/statsmodels_fork/statsmodels")
 
@@ -8,7 +13,11 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import statsmodels.api as sm
 
-pdf = PdfPages("sbp_haz_kernel.pdf")
+# Two variables to work with
+vn1 = "HAZ"
+vn2 = "SBMean23"
+
+pdf = PdfPages("%s_%s_kernel.pdf" % (vn1, vn2))
 
 from sbp_data import get_data
 
@@ -17,20 +26,20 @@ for female in False, True:
     df = get_data(female)
 
     # Remove the mean structure from HAZ
-    model = sm.OLS.from_formula("HAZ ~ bs(Age, 5)", data=df)
+    model = sm.OLS.from_formula("%s ~ bs(Age, 5)" % vn1, data=df)
     result = model.fit()
-    df["HAZ_resid"] = result.resid
+    df[vn1 + "_resid"] = result.resid
 
     # Remove the mean structure from SBP
-    model = sm.OLS.from_formula("SBMean23 ~ bs(Age, 5)", data=df)
+    model = sm.OLS.from_formula("%s ~ bs(Age, 5)" % vn2, data=df)
     result = model.fit()
-    df["SBMean23_resid"] = result.resid
+    df[vn2 + "_resid"] = result.resid
 
     age = df.Age.values
 
     # Estimate the covariances and cross covariances among HAZ
     # and SBP
-    cv = kernel_covariance(exog=df[["HAZ_resid", "SBMean23_resid"]],
+    cv = kernel_covariance(exog=df[[vn1 + "_resid", vn2 + "_resid"]],
                            loc=age, groups=df.ID, bw=2)
 
     # Evaluate the estimated covariances on a grid of ages
@@ -82,8 +91,8 @@ for female in False, True:
         plt.imshow(mat, interpolation='nearest',
                    extent=[age.min(), age.max(), age.max(), age.min()],
                    **kw)
-        plt.xlabel("HAZ age", size=16)
-        plt.ylabel("HAZ age", size=16)
+        plt.xlabel("%s age" % vn1, size=16)
+        plt.ylabel("%s age" % vn1, size=16)
         plt.colorbar()
         pdf.savefig()
 
@@ -98,8 +107,8 @@ for female in False, True:
         plt.imshow(mat, interpolation='nearest',
                    extent=[age.min(), age.max(), age.max(), age.min()],
                    **kw)
-        plt.xlabel("SBP age", size=16)
-        plt.ylabel("SBP age", size=16)
+        plt.xlabel("%s age" % vn2, size=16)
+        plt.ylabel("%s age" % vn2, size=16)
         plt.colorbar()
         pdf.savefig()
 
@@ -114,8 +123,8 @@ for female in False, True:
         plt.imshow(mat, interpolation='nearest',
                    extent=[age.min(), age.max(), age.max(), age.min()],
                    **kw)
-        plt.xlabel("SBP age", size=16)
-        plt.ylabel("HAZ age", size=16)
+        plt.xlabel("%s age" % vn2, size=16)
+        plt.ylabel("%s age" % vn1, size=16)
         plt.colorbar()
         pdf.savefig()
 
