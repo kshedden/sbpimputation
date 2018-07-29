@@ -15,7 +15,7 @@ import statsmodels.api as sm
 
 # Two variables to work with
 vn1 = "HAZ"
-vn2 = "SBMean23"
+vn2 = "SBP_Mean"
 
 pdf = PdfPages("%s_%s_kernel.pdf" % (vn1, vn2))
 

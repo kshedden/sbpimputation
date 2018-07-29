@@ -1,4 +1,4 @@
 #!/bin/bash
 
-echo HT:HAZ:BAZ:WAZ:WT | rush -D ":" -k 'python sbp.py {}'
+echo HT $1:HAZ $1:BAZ $1:WAZ $1:WT $1 | rush -D ":" -k 'python sbp.py {}'
 

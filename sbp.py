@@ -1,5 +1,17 @@
 """
 Fit models for outcome variables relative to exposures.
+
+Pass the name of the outcome variable
+
+> python sbp.py impvar version
+
+Versions define different model structures
+
+1:
+Control for height and BMI * gender
+
+2:
+Control for current impvar instead of height and BMI * gender
 """
 
 import sys
@@ -18,30 +30,43 @@ if impvar not in allowed_outcomes:
     msg = "Unknown imputation variable"
     sys.exit(msg)
 
-df = pd.read_csv("/nfs/kshedden/Beverly_Strassmann/Cohort_2018.csv.gz")
+version = int(sys.argv[2])
+
+print("!!! %s %d\n" % (impvar, version))
+
+df = pd.read_csv("/nfs/kshedden/Beverly_Strassmann/Cohort_2018_072818.csv.gz")
 
 # Selections
-df = df.loc[df.Year > 2009]
 df = df.loc[df.Bamako.isin([0, 1]), :]
 
 df["Sex"] = df["Sex"].replace({0: "Female", 1: "Male"})
 df["Female"] = df["Sex"].replace({"Female": 1, "Male": 0})
-df["BMI_cen"] = df.BMI_15 - df.BMI_15.mean()
-df["HT_cen"] = df.Ht_Ave - df.Ht_Ave.mean()
+df["BMI_cen"] = df.BMI_18 - df.BMI_18.mean()
+df["HT_cen"] = df.Ht_Ave_18 - df.Ht_Ave_18.mean()
 df["temp_cen"] = df.Temp - df.Temp.mean()
 df["age_cen"] = df.Age_Yrs - df.Age_Yrs.mean()
 df["age_x"] = (df.Age_Yrs - 10) / 10
+df["HT"] = df.Ht_Ave_18
+df["HAZ"] = df.HAZ_18
+df["BAZ"] = df.BAZ_18
+df["WAZ"] = df.WAZ_18
+df["School"] = pd.notnull(df["School_Cat"]).astype(np.int)
+
+df["ID"] = df["ID"].astype(np.int)
 
 df = df.rename(columns={
     "MomID.Unique": "MomIdUnique",
-    "DadID.Unique": "DadIdUnique"
+    "DadID.Unique": "DadIdUnique",
 })
 
 vars = [
-    "ID", "SBMean23", "Bamako", "age_cen", "age_x", "Age_Yrs", "Female",
+    "ID", "SBP_MEAN", "Bamako", "age_cen", "age_x", "Age_Yrs", "Female",
     "BMI_cen", "HT_cen", "Year", "lognummeas", "temp_cen", "School",
-    "Wealth_Z", "MomIdUnique"
+    "Wealth_Z", "MomIdUnique",
 ]
+
+if version == 2:
+    vars.append(impvar)
 
 vx = [(impvar + "%d") % a for a in range(1, 11)]
 
@@ -56,6 +81,7 @@ class mimi(object):
     def update(self):
         di = pd.read_csv(
             os.path.join("imputed_data", "%s_imp_%d.csv" % (impvar, self.ix)))
+        di["ID"] = di["ID"].astype(np.int)
         dd = di[vx]
         q = dd.shape[1]
         di["%s_i" % impvar] = np.dot(dd, np.ones(q))
@@ -80,21 +106,27 @@ class mimi(object):
 
         dx = pd.merge(
             df.loc[:, vars], di, left_on="ID", right_on="ID", how="left")
+
         self.data = dx.dropna()
 
 
-fml = "SBMean23 ~ Female*(age_x + I(age_x**2) + I(age_x**3)) + HT_cen + Female*BMI_cen + C(Year) + lognummeas + temp_cen + School + Wealth_Z + Bamako + "
+fml = "SBP_MEAN ~ Female*(age_x + I(age_x**2) + I(age_x**3)) + C(Year) + lognummeas + temp_cen + School + Wealth_Z + Bamako + "
+
+if version == 1:
+    fml += "HT_cen + Female*BMI_cen + "
+elif version == 2:
+    fml += "%s + " % impvar
 
 fml_lin = fml + "%s_i + %s_l + %s_q" % (impvar, impvar, impvar)
 fml_dlin = fml + "%s_di + %s_dl + %s_dq" % (impvar, impvar, impvar)
 fml_min = fml + ("%s10 + min" % impvar)
 fml_yrlow = fml + ("%s10 + years_low" % impvar)
 
-out = open("imp_%s.txt" % impvar, "w")
+out = open("imp_%s_%d.txt" % (impvar, version), "w")
 
-# DEBUG
-#vcf = {"Id": "0 + C(ID)", "Id*age": "0 + C(ID)*age_cen"}
-vcf = {"Id": "0 + C(ID)"}
+vcf = {"Id": "0 + C(ID)", "Id*age": "0 + C(ID)*age_cen"}
+
+#vcf = {"Id": "0 + C(ID)"}
 
 
 def model_kwds_fn(x):
@@ -114,6 +146,7 @@ for fml in fml_dlin, fml_min, fml_yrlow, fml_lin:
         skip=0)
     rslt = imp.fit()
 
+    out.write("%s\n" % impvar)
     out.write("%d distinct subjects\n" % df.ID.unique().size)
     out.write(rslt.summary().as_text())
 
