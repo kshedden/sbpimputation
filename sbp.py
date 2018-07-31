@@ -132,6 +132,8 @@ vcf = {"Id": "0 + C(ID)", "Id*age": "0 + C(ID)*age_cen"}
 def model_kwds_fn(x):
     return {"groups": "MomIdUnique", "re_formula": "1", "vc_formula": vcf}
 
+def fit_kwds_fn(x):
+    return {"method": "lbfgs"}
 
 for fml in fml_dlin, fml_min, fml_yrlow, fml_lin:
 
@@ -141,6 +143,7 @@ for fml in fml_dlin, fml_min, fml_yrlow, fml_lin:
         None,
         formula=fml,
         model_kwds_fn=model_kwds_fn,
+        fit_kwds=fit_kwds_fn,
         burn=0,
         nrep=20,
         skip=0)
