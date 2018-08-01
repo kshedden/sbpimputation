@@ -26,7 +26,7 @@ import numpy as np
 from config import *
 
 impvar = sys.argv[1]
-if impvar not in allowed_outcomes:
+if impvar not in allowed_controls:
     msg = "Unknown imputation variable"
     sys.exit(msg)
 
@@ -50,7 +50,7 @@ df["HT"] = df.Ht_Ave_18
 df["HAZ"] = df.HAZ_18
 df["BAZ"] = df.BAZ_18
 df["WAZ"] = df.WAZ_18
-df["School"] = pd.notnull(df["School_Cat"]).astype(np.int)
+df["School"] = df.School_Imputed
 
 df["ID"] = df["ID"].astype(np.int)
 
@@ -95,12 +95,22 @@ class mimi(object):
         di["%s_dl" % impvar] = np.dot(d1, np.linspace(-1, 1, q))
         di["%s_dq" % impvar] = np.dot(d1, np.linspace(-1, 1, q)**2)
 
+        # Derivatives of logs (relative growth)
+        if "Z" not in impvar:
+            d1 = np.log(dd).diff(1, axis=1).iloc[:, 1:]
+            q = d1.shape[1]
+            di["%s_ri" % impvar] = np.dot(d1, np.ones(q))
+            di["%s_rl" % impvar] = np.dot(d1, np.linspace(-1, 1, q))
+            di["%s_rq" % impvar] = np.dot(d1, np.linspace(-1, 1, q)**2)
+
         di["years_low"] = (dd < low_thresh).sum(1)
         di["min"] = dd.min(1)
 
         vb = ["ID", "%s10" % impvar]
         vb += [(impvar + "_%s") % x for x in "ilq"]
         vb += [(impvar + "_d%s") % x for x in "ilq"]
+        if "Z" not in impvar:
+            vb += [(impvar + "_r%s") % x for x in "ilq"]
         vb += ["years_low", "min"]
         di = di.loc[:, vb]
 
@@ -119,6 +129,7 @@ elif version == 2:
 
 fml_lin = fml + "%s_i + %s_l + %s_q" % (impvar, impvar, impvar)
 fml_dlin = fml + "%s_di + %s_dl + %s_dq" % (impvar, impvar, impvar)
+fml_rlin = fml + "%s_ri + %s_rl + %s_rq" % (impvar, impvar, impvar)
 fml_min = fml + ("%s10 + min" % impvar)
 fml_yrlow = fml + ("%s10 + years_low" % impvar)
 
@@ -135,7 +146,10 @@ def model_kwds_fn(x):
 def fit_kwds_fn(x):
     return {"method": "lbfgs"}
 
-for fml in fml_dlin, fml_min, fml_yrlow, fml_lin:
+for fml in fml_dlin, fml_rlin, fml_min, fml_yrlow, fml_lin:
+
+    if "Z" in impvar and fml == fml_rlin:
+        continue
 
     imp = MI(
         mimi(),
@@ -154,29 +168,32 @@ for fml in fml_dlin, fml_min, fml_yrlow, fml_lin:
     out.write(rslt.summary().as_text())
 
     # Save the coefficient trajectories, if present
-    if fml in (fml_lin, fml_dlin):
+    if fml in (fml_lin, fml_dlin, fml_rlin):
         mp = rslt.params
         cm = rslt.cov_params()
         xn = rslt.model.exog_names
         p = len(xn)
         cm = cm[0:p, 0:p]
         xn = xn[0:p]
-        x = "" if fml == fml_lin else "d"
+        x = ""
+        if fml == fml_dlin:
+            x = "d"
+        elif fml == fml_rlin:
+            x = "r"
         i = xn.index("%s_%si" % (impvar, x))
         l = xn.index("%s_%sl" % (impvar, x))
         q = xn.index("%s_%sq" % (impvar, x))
-        ag = np.arange(1, 11)
         ax = np.linspace(-1, 1, 10)
-        mx = np.zeros((len(ag), 3))
+        mx = np.zeros((10, 3))
         for k, x in enumerate(ax):
             d = np.zeros(p)
             d[i] = 1
             d[l] = ax[k]
             d[q] = ax[k]**2
-            mx[k, 0] = ag[k]
+            mx[k, 0] = k + 1
             mx[k, 1] = mp[i] + mp[l] * ax[k] + mp[q] * ax[k]**2
             mx[k, 2] = np.sqrt(np.dot(d, np.dot(cm, d)))
-        mx = pd.DataFrame(mx, columns=["age", "coeff", "se"], index=ag)
+        mx = pd.DataFrame(mx, columns=["age", "coeff", "se"], index=range(1, 11))
         out.write("BEGIN-TRAJECTORY\n")
         out.write(mx.to_string(index=False))
         out.write("\nEND-TRAJECTORY\n")

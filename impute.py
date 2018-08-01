@@ -25,7 +25,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 # Make sure that we are imputing a valid variable.
 impvar = sys.argv[1]
-if impvar not in allowed_outcomes:
+if impvar not in allowed_controls:
     msg = "Unknown imputation variable"
     sys.exit(msg)
 
