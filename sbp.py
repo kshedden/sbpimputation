@@ -34,23 +34,30 @@ version = int(sys.argv[2])
 
 print("!!! %s %d\n" % (impvar, version))
 
-df = pd.read_csv("/nfs/kshedden/Beverly_Strassmann/Cohort_2018_072818.csv.gz")
+df = pd.read_csv("/nfs/kshedden/Beverly_Strassmann/Cohort_2018_080118.csv.gz")
 
 # Selections
 df = df.loc[df.Bamako.isin([0, 1]), :]
 
 df["Sex"] = df["Sex"].replace({0: "Female", 1: "Male"})
 df["Female"] = df["Sex"].replace({"Female": 1, "Male": 0})
+df["Male"] = df["Sex"].replace({"Female": 0, "Male": 1})
 df["BMI_cen"] = df.BMI_18 - df.BMI_18.mean()
 df["HT_cen"] = df.Ht_Ave_18 - df.Ht_Ave_18.mean()
 df["temp_cen"] = df.Temp - df.Temp.mean()
-df["age_cen"] = df.Age_Yrs - df.Age_Yrs.mean()
-df["age_x"] = (df.Age_Yrs - 10) / 10
+df["Age"] = np.around(df["Age_Yrs"], 3)
+df["age_cen"] = df.Age - df.Age.mean()
+df["age_x"] = (df.Age - 10) / 10
 df["HT"] = df.Ht_Ave_18
 df["HAZ"] = df.HAZ_18
 df["BAZ"] = df.BAZ_18
 df["WAZ"] = df.WAZ_18
 df["School"] = df.School_Imputed
+
+df["log2T_use"] = np.log(df.T_use) / np.log(2)
+df["log2T_use_Z"] = (df.log2T_use - df.log2T_use.mean()) / df.log2T_use.std()
+
+df["Breast_Stage_Z"] = (df.Breast_Stage - df.Breast_Stage.mean()) / df.Breast_Stage.std()
 
 df["ID"] = df["ID"].astype(np.int)
 
@@ -60,9 +67,9 @@ df = df.rename(columns={
 })
 
 vars = [
-    "ID", "SBP_MEAN", "Bamako", "age_cen", "age_x", "Age_Yrs", "Female",
-    "BMI_cen", "HT_cen", "Year", "lognummeas", "temp_cen", "School",
-    "Wealth_Z", "MomIdUnique",
+    "ID", "SBP_MEAN", "Bamako", "age_cen", "age_x", "Age", "Female",
+    "Male", "BMI_cen", "HT_cen", "Year", "lognummeas", "temp_cen", "School",
+    "Wealth_Z", "MomIdUnique", "log2T_use_Z", "Breast_Stage_Z",
 ]
 
 if version == 2:
@@ -117,10 +124,23 @@ class mimi(object):
         dx = pd.merge(
             df.loc[:, vars], di, left_on="ID", right_on="ID", how="left")
 
+        for vn in "Breast_Stage_Z", "log2T_use_Z":
+            dd = pd.read_csv(os.path.join("imputed_data_puberty", "%s_imp_%d.csv" % (vn, self.ix)))
+            dd = pd.merge(dx, dd, left_on=("ID", "Age"), right_on=("ID", "Age"), how="left")
+            dd[vn] = np.nan
+            ix = pd.notnull(dd[vn + "_x"])
+            iy = pd.notnull(dd[vn + "_y"])
+            dd.loc[ix, vn] = dd.loc[ix, vn + "_x"]
+            dd.loc[iy, vn] = dd.loc[iy, vn + "_y"]
+            dx = dd.drop([vn + "_x", vn + "_y"], axis=1)
+
+        dx.loc[dx.Female == 1, "log2T_use_Z"] = 0
+        dx.loc[dx.Female == 0, "Breast_Stage_Z"] = 0
+
         self.data = dx.dropna()
+        self.ix += 1
 
-
-fml = "SBP_MEAN ~ Female*(age_x + I(age_x**2) + I(age_x**3)) + C(Year) + lognummeas + temp_cen + School + Wealth_Z + Bamako + "
+fml = "SBP_MEAN ~ Female*(age_x + I(age_x**2) + I(age_x**3)) + C(Year) + lognummeas + temp_cen + School + Wealth_Z + Bamako + Female:Breast_Stage_Z + Male:log2T_use_Z + "
 
 if version == 1:
     fml += "HT_cen + Female*BMI_cen + "
@@ -161,6 +181,7 @@ for fml in fml_dlin, fml_rlin, fml_min, fml_yrlow, fml_lin:
         burn=0,
         nrep=20,
         skip=0)
+
     rslt = imp.fit()
 
     out.write("%s\n" % impvar)

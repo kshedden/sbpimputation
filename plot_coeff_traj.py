@@ -33,10 +33,10 @@ for vn in allowed_controls:
                 cf.append(cx)
 
         if "Z" not in vn:
-            st = ["change in raw", "relative change in", "absolute"]
+            st = ["change in", "relative change in", "absolute"]
         else:
             # No relative change for Z-score variables
-            st = ["change in raw", "absolute"]
+            st = ["change in", "absolute"]
 
         for jr, rv in enumerate(cf):
 

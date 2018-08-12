@@ -43,6 +43,8 @@ rslt = [None, None]
 for female in 0, 1:
 
     dx[female] = get_data(female, impvar)
+    dx[female] = dx[female].loc[dx[female].Age <= maxage+1, :]
+    dx[female] = dx[female].dropna()
 
     # Fit the model -- note that degrees of freedom are fixed here.
     # TODO: are these good choices of the df values?
