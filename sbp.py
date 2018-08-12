@@ -86,10 +86,14 @@ class mimi(object):
     ix = 0
 
     def update(self):
+
+        # Create an array to hold the gridded values of impvar
         di = pd.read_csv(
             os.path.join("imputed_data", "%s_imp_%d.csv" % (impvar, self.ix)))
         di["ID"] = di["ID"].astype(np.int)
         dd = di[vx]
+
+        # Functional linear terms
         q = dd.shape[1]
         di["%s_i" % impvar] = np.dot(dd, np.ones(q))
         di["%s_l" % impvar] = np.dot(dd, np.linspace(-1, 1, q))
@@ -113,27 +117,34 @@ class mimi(object):
         di["years_low"] = (dd < low_thresh).sum(1)
         di["min"] = dd.min(1)
 
+        # Names of all terms just added
         vb = ["ID", "%s10" % impvar]
         vb += [(impvar + "_%s") % x for x in "ilq"]
         vb += [(impvar + "_d%s") % x for x in "ilq"]
         if "Z" not in impvar:
             vb += [(impvar + "_r%s") % x for x in "ilq"]
         vb += ["years_low", "min"]
+
+        # Get rid of unwanted terms
         di = di.loc[:, vb]
 
+        # Merge all variables created above with other cohort file variables
         dx = pd.merge(
             df.loc[:, vars], di, left_on="ID", right_on="ID", how="left")
 
+        # Merge in imputed puberty variables
         for vn in "Breast_Stage_Z", "log2T_use_Z":
             dd = pd.read_csv(os.path.join("imputed_data_puberty", "%s_imp_%d.csv" % (vn, self.ix)))
             dd = pd.merge(dx, dd, left_on=("ID", "Age"), right_on=("ID", "Age"), how="left")
             dd[vn] = np.nan
             ix = pd.notnull(dd[vn + "_x"])
             iy = pd.notnull(dd[vn + "_y"])
+            assert(!(ix & iy).any())
             dd.loc[ix, vn] = dd.loc[ix, vn + "_x"]
             dd.loc[iy, vn] = dd.loc[iy, vn + "_y"]
             dx = dd.drop([vn + "_x", vn + "_y"], axis=1)
 
+        # Code testosterone for females, breast stage for males as zero
         dx.loc[dx.Female == 1, "log2T_use_Z"] = 0
         dx.loc[dx.Female == 0, "Breast_Stage_Z"] = 0
 
