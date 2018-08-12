@@ -23,6 +23,7 @@ import statsmodels.api as sm
 from statsmodels.imputation.bayes_mi import MI
 import os
 import numpy as np
+from data_tools import df
 from config import *
 
 impvar = sys.argv[1]
@@ -34,30 +35,14 @@ version = int(sys.argv[2])
 
 print("!!! %s %d\n" % (impvar, version))
 
-df = pd.read_csv("/nfs/kshedden/Beverly_Strassmann/Cohort_2018_080118.csv.gz")
-
-# Selections
-df = df.loc[df.Bamako.isin([0, 1]), :]
-
-df["Sex"] = df["Sex"].replace({0: "Female", 1: "Male"})
-df["Female"] = df["Sex"].replace({"Female": 1, "Male": 0})
 df["Male"] = df["Sex"].replace({"Female": 0, "Male": 1})
 df["BMI_cen"] = df.BMI_18 - df.BMI_18.mean()
 df["HT_cen"] = df.Ht_Ave_18 - df.Ht_Ave_18.mean()
 df["temp_cen"] = df.Temp - df.Temp.mean()
-df["Age"] = np.around(df["Age_Yrs"], 3)
 df["age_cen"] = df.Age - df.Age.mean()
 df["age_x"] = (df.Age - 10) / 10
-df["HT"] = df.Ht_Ave_18
-df["HAZ"] = df.HAZ_18
-df["BAZ"] = df.BAZ_18
-df["WAZ"] = df.WAZ_18
 df["School"] = df.School_Imputed
 
-df["log2T_use"] = np.log(df.T_use) / np.log(2)
-df["log2T_use_Z"] = (df.log2T_use - df.log2T_use.mean()) / df.log2T_use.std()
-
-df["Breast_Stage_Z"] = (df.Breast_Stage - df.Breast_Stage.mean()) / df.Breast_Stage.std()
 
 df["ID"] = df["ID"].astype(np.int)
 

@@ -6,6 +6,8 @@ from config import *
 pa = "/nfs/kshedden/Beverly_Strassmann/Cohort_2018_080118.csv.gz"
 df = pd.read_csv(pa)
 
+df = df.loc[df.Bamako.isin([0, 1]), :]
+
 # Modify some of the variable names
 df["Sex"] = df["Sex"].replace({0: "Female", 1: "Male"})
 df["Female"] = df["Sex"].replace({"Female": 1, "Male": 0})
