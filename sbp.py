@@ -12,6 +12,16 @@ Control for height and BMI * gender
 
 2:
 Control for current impvar instead of height and BMI * gender
+
+heat map !!!
+
+T_date_use : saliva date
+
+include reproductive status (reprostat)
+
+go back to imputing testosterone
+
+sports, smoking, minutes walked
 """
 
 import sys
@@ -54,7 +64,8 @@ df = df.rename(columns={
 vars = [
     "ID", "SBP_MEAN", "Bamako", "age_cen", "age_x", "Age", "Female",
     "Male", "BMI_cen", "HT_cen", "Year", "lognummeas", "temp_cen", "School",
-    "Wealth_Z", "MomIdUnique", "log2T_use_Z", "Breast_Stage_Z",
+    "Wealth_Z", "MomIdUnique", "log2T_use_Z", "Breast_Stage_Use_Z",
+    "Pregnant", "Lactating",
 ]
 
 if version == 2:
@@ -62,8 +73,38 @@ if version == 2:
 
 vx = [(impvar + "%d") % a for a in range(1, 11)]
 
-low_thresh = {"HAZ": -2, "BAZ": -2, "WAZ": -2, "HT": 75, "WT": 8}[impvar]
+low_thresh = {"HAZ": -2, "BAZ": -2, "WAZ": -2, "HT": 75, "WT": 8, "BMI": 15}[impvar]
 
+import patsy
+bs = patsy.dmatrix("0 + bs(a, 5)", pd.DataFrame({"a": np.linspace(-1, 1, 10)}), return_type='dataframe')
+bs = np.asarray(bs)
+bs[:, 1:] -= bs[:, 1:].mean(0)
+bs /= np.sqrt((bs * bs).sum(0))
+
+
+# Get the moments of the projected data
+mnx, mn, cov = 0, 0, 0
+for k in range(20):
+    di = pd.read_csv(os.path.join("imputed_data", "%s_imp_%d.csv" % (impvar, k)))
+    di["ID"] = di["ID"].astype(np.int)
+    dd = di[vx]
+    mnx += dd.mean(0)
+    dbs = np.dot(dd, bs)
+    mn += dbs.mean(0)
+    cov += np.cov(dbs.T)
+mn /= 20
+mnx /= 20
+cov /= 20
+b, proj = np.linalg.eig(cov)
+
+
+def xfeat(z):
+    #z = [np.arctan(z+c) for c in (0,)]
+    #z = np.concatenate(z, axis=1)
+    return z
+
+vbl = 5
+vb = ["%s_x%d" % (impvar, j) for j in range(vbl)]
 
 # A class for producing imputed data sets
 class mimi(object):
@@ -72,88 +113,55 @@ class mimi(object):
 
     def update(self):
 
-        # Create an array to hold the gridded values of impvar
+        # Load the gridded values of impvar
         di = pd.read_csv(
             os.path.join("imputed_data", "%s_imp_%d.csv" % (impvar, self.ix)))
         di["ID"] = di["ID"].astype(np.int)
         dd = di[vx]
 
-        # Functional linear terms
-        q = dd.shape[1]
-        di["%s_i" % impvar] = np.dot(dd, np.ones(q))
-        di["%s_l" % impvar] = np.dot(dd, np.linspace(-1, 1, q))
-        di["%s_q" % impvar] = np.dot(dd, np.linspace(-1, 1, q)**2)
+        dbs = np.dot(dd - mnx, bs)
+        dbs = np.dot(dbs, proj)
+        dbs = xfeat(dbs)
+        dbs = np.concatenate((di.ID.values[:,None], dbs), axis=1)
 
-        # Derivatives
-        d1 = dd.diff(1, axis=1).iloc[:, 1:]
-        q = d1.shape[1]
-        di["%s_di" % impvar] = np.dot(d1, np.ones(q))
-        di["%s_dl" % impvar] = np.dot(d1, np.linspace(-1, 1, q))
-        di["%s_dq" % impvar] = np.dot(d1, np.linspace(-1, 1, q)**2)
-
-        # Derivatives of logs (relative growth)
-        if "Z" not in impvar:
-            d1 = np.log(dd).diff(1, axis=1).iloc[:, 1:]
-            q = d1.shape[1]
-            di["%s_ri" % impvar] = np.dot(d1, np.ones(q))
-            di["%s_rl" % impvar] = np.dot(d1, np.linspace(-1, 1, q))
-            di["%s_rq" % impvar] = np.dot(d1, np.linspace(-1, 1, q)**2)
-
-        di["years_low"] = (dd < low_thresh).sum(1)
-        di["min"] = dd.min(1)
-
-        # Names of all terms just added
-        vb = ["ID", "%s10" % impvar]
-        vb += [(impvar + "_%s") % x for x in "ilq"]
-        vb += [(impvar + "_d%s") % x for x in "ilq"]
-        if "Z" not in impvar:
-            vb += [(impvar + "_r%s") % x for x in "ilq"]
-        vb += ["years_low", "min"]
-
-        # Get rid of unwanted terms
-        di = di.loc[:, vb]
+        dbs = pd.DataFrame(dbs, columns=["ID"] + vb)
+        dbs.ID =dbs.ID.astype(np.int)
 
         # Merge all variables created above with other cohort file variables
         dx = pd.merge(
-            df.loc[:, vars], di, left_on="ID", right_on="ID", how="left")
+            df.loc[:, vars], dbs, left_on="ID", right_on="ID", how="left")
 
         # Merge in imputed puberty variables
-        for vn in "Breast_Stage_Z", "log2T_use_Z":
+        for vn in "Breast_Stage_Use_Z", "log2T_use_Z":
             dd = pd.read_csv(os.path.join("imputed_data_puberty", "%s_imp_%d.csv" % (vn, self.ix)))
             dd = pd.merge(dx, dd, left_on=("ID", "Age"), right_on=("ID", "Age"), how="left")
-            dd[vn] = np.nan
             ix = pd.notnull(dd[vn + "_x"])
             iy = pd.notnull(dd[vn + "_y"])
-            assert(!(ix & iy).any())
+            #assert(!(ix & iy).any())
+            dd[vn] = np.nan
             dd.loc[ix, vn] = dd.loc[ix, vn + "_x"]
             dd.loc[iy, vn] = dd.loc[iy, vn + "_y"]
             dx = dd.drop([vn + "_x", vn + "_y"], axis=1)
 
         # Code testosterone for females, breast stage for males as zero
         dx.loc[dx.Female == 1, "log2T_use_Z"] = 0
-        dx.loc[dx.Female == 0, "Breast_Stage_Z"] = 0
+        dx.loc[dx.Female == 0, "Breast_Stage_Use_Z"] = 0
 
         self.data = dx.dropna()
         self.ix += 1
 
-fml = "SBP_MEAN ~ Female*(age_x + I(age_x**2) + I(age_x**3)) + C(Year) + lognummeas + temp_cen + School + Wealth_Z + Bamako + Female:Breast_Stage_Z + Male:log2T_use_Z + "
+fml = "SBP_MEAN ~ Female*(age_x + I(age_x**2) + I(age_x**3)) + C(Year) + lognummeas + temp_cen + School + Wealth_Z + Bamako + Female:Breast_Stage_Use_Z + Male:log2T_use_Z + Pregnant + Lactating + "
 
 if version == 1:
     fml += "HT_cen + Female*BMI_cen + "
 elif version == 2:
     fml += "%s + " % impvar
 
-fml_lin = fml + "%s_i + %s_l + %s_q" % (impvar, impvar, impvar)
-fml_dlin = fml + "%s_di + %s_dl + %s_dq" % (impvar, impvar, impvar)
-fml_rlin = fml + "%s_ri + %s_rl + %s_rq" % (impvar, impvar, impvar)
-fml_min = fml + ("%s10 + min" % impvar)
-fml_yrlow = fml + ("%s10 + years_low" % impvar)
+out = open("imp_%s_%d_x.txt" % (impvar, version), "w")
 
-out = open("imp_%s_%d.txt" % (impvar, version), "w")
+#vcf = {"Id": "0 + C(ID)", "Id*age": "0 + C(ID)*age_cen"}
 
-vcf = {"Id": "0 + C(ID)", "Id*age": "0 + C(ID)*age_cen"}
-
-#vcf = {"Id": "0 + C(ID)"}
+vcf = {"Id": "0 + C(ID)"}
 
 
 def model_kwds_fn(x):
@@ -162,57 +170,80 @@ def model_kwds_fn(x):
 def fit_kwds_fn(x):
     return {"method": "lbfgs"}
 
-for fml in fml_dlin, fml_rlin, fml_min, fml_yrlow, fml_lin:
+fml += " + ".join(vb)
 
-    if "Z" in impvar and fml == fml_rlin:
-        continue
+imp = MI(
+    mimi(),
+    sm.OLS, #DEBUG sm.MixedLM,
+    None,
+    formula=fml,
+    #DEBUG model_kwds_fn=model_kwds_fn,
+    #DEBUG fit_kwds=fit_kwds_fn,
+    burn=0,
+    nrep=20,
+    skip=0)
 
-    imp = MI(
-        mimi(),
-        sm.MixedLM,
-        None,
-        formula=fml,
-        model_kwds_fn=model_kwds_fn,
-        fit_kwds=fit_kwds_fn,
-        burn=0,
-        nrep=20,
-        skip=0)
+rslt = imp.fit()
 
-    rslt = imp.fit()
+out.write("%s\n" % impvar)
+out.write("%d distinct subjects\n" % df.ID.unique().size)
+out.write(rslt.summary().as_text())
 
-    out.write("%s\n" % impvar)
-    out.write("%d distinct subjects\n" % df.ID.unique().size)
-    out.write(rslt.summary().as_text())
+tsts = [np.linspace(-10, 0, len(mnx)), np.linspace(0, -10, len(mnx))]
 
-    # Save the coefficient trajectories, if present
-    if fml in (fml_lin, fml_dlin, fml_rlin):
-        mp = rslt.params
-        cm = rslt.cov_params()
-        xn = rslt.model.exog_names
-        p = len(xn)
-        cm = cm[0:p, 0:p]
-        xn = xn[0:p]
-        x = ""
-        if fml == fml_dlin:
-            x = "d"
-        elif fml == fml_rlin:
-            x = "r"
-        i = xn.index("%s_%si" % (impvar, x))
-        l = xn.index("%s_%sl" % (impvar, x))
-        q = xn.index("%s_%sq" % (impvar, x))
-        ax = np.linspace(-1, 1, 10)
-        mx = np.zeros((10, 3))
-        for k, x in enumerate(ax):
-            d = np.zeros(p)
-            d[i] = 1
-            d[l] = ax[k]
-            d[q] = ax[k]**2
-            mx[k, 0] = k + 1
-            mx[k, 1] = mp[i] + mp[l] * ax[k] + mp[q] * ax[k]**2
-            mx[k, 2] = np.sqrt(np.dot(d, np.dot(cm, d)))
-        mx = pd.DataFrame(mx, columns=["age", "coeff", "se"], index=range(1, 11))
-        out.write("BEGIN-TRAJECTORY\n")
-        out.write(mx.to_string(index=False))
-        out.write("\nEND-TRAJECTORY\n")
+pr = []
+for tst in tsts:
+
+    ts = np.dot(np.dot(tst, bs), proj)
+
+    mi = mimi()
+    pr0 = 0
+    for k in range(20):
+
+        mi.update()
+        da = mi.data
+        dx = da.iloc[0:10, :].copy()
+        m = dx.mean(0)
+        for i in range(10):
+            dx.iloc[i, :] = m
+        dx = dx.reset_index()
+        dx.Year = 2012
+        dx0 = dx.copy()
+        dx1 = dx.copy()
+
+        z = np.outer(np.linspace(0, 1, 10), ts)
+        dx1.loc[:, vb] = xfeat(z)
+
+        dx0.loc[:, vb] = xfeat(0* z)
+
+        pr0 += rslt.predict(exog=dx1) - rslt.predict(exog=dx0)
+
+    pr0 /= 20
+    pr.append(pr0)
+1/0
+
+# Save the coefficient trajectories, if present
+mp = rslt.params
+cm = rslt.cov_params()
+xn = rslt.model.exog_names
+p = len(xn)
+cm = cm[0:p, 0:p]
+xn = xn[0:p]
+
+
+ax = np.linspace(-1, 1, 10)
+mx = np.zeros((10, 3))
+for k, x in enumerate(ax):
+    d = np.zeros(p)
+    d[i] = 1
+    d[l] = ax[k]
+    d[q] = ax[k]**2
+    mx[k, 0] = k + 1
+    mx[k, 1] = mp[i] + mp[l] * ax[k] + mp[q] * ax[k]**2
+    mx[k, 2] = np.sqrt(np.dot(d, np.dot(cm, d)))
+mx = pd.DataFrame(mx, columns=["age", "coeff", "se"], index=range(1, 11))
+out.write("BEGIN-TRAJECTORY\n")
+out.write(mx.to_string(index=False))
+out.write("\nEND-TRAJECTORY\n\n")
 
 out.close()

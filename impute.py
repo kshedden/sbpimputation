@@ -18,7 +18,7 @@ import numpy as np
 import os
 import pandas as pd
 from data_tools import get_data
-from statsmodels.regression.process_reg import ProcessRegression
+from statsmodels.regression.process_regression import ProcessMLE
 import matplotlib.pyplot as plt
 from config import *
 from matplotlib.backends.backend_pdf import PdfPages
@@ -42,14 +42,32 @@ rslt = [None, None]
 # Fit a Gaussian process model separately to females and males.
 for female in 0, 1:
 
-    dx[female] = get_data(female, impvar)
-    dx[female] = dx[female].loc[dx[female].Age <= maxage+1, :]
+    # Drop people with no SBP data
+    dx[female] = get_data(female, impvar, others=["SBP_MEAN"])
+    x = dx[female][["ID", "SBP_MEAN"]].dropna().groupby("ID").size()
+    x = pd.DataFrame(x, columns=["n_SBP_mean"])
+    dx[female] = pd.merge(dx[female], x, left_on="ID", right_on="ID", how='outer')
+    dx[female] = dx[female].loc[dx[female].n_SBP_mean > 0, :]
+    dx[female] = dx[female].drop(["SBP_MEAN", "n_SBP_mean"], axis=1)
     dx[female] = dx[female].dropna()
+
+    # Restrict to younger ages
+    dx[female] = dx[female].loc[dx[female].Age <= maxage+1, :]
+
+    if female == 1:
+        xf = []
+        for fem in 0, 1:
+            xf.append(dx[fem].groupby("ID").size())
+        xf = pd.concat(xf, axis=0)
+        xf = xf.reset_index()
+        xf.columns = ["ID", "n_" + impvar]
+        xf.ID = xf.ID.astype(np.int)
+        xf.to_csv("mixed/stats/%s.csv" % impvar,  index=False)
 
     # Fit the model -- note that degrees of freedom are fixed here.
     # TODO: are these good choices of the df values?
     # TODO: maybe this should be refit each imputation cycle with bootstrapped data
-    preg[female] = ProcessRegression.from_formula(
+    preg[female] = ProcessMLE.from_formula(
         "%s ~ bs(Age, 4)" % impvar,
         scale_formula="bs(Age, 4)",
         smooth_formula="bs(Age, 4)",
