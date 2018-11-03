@@ -30,6 +30,7 @@ if impvar not in allowed_controls:
     sys.exit(msg)
 
 pdf = PdfPages("covmat_%s.pdf" % impvar)
+outf = open("impute_%s_info.txt" % impvar, "w")
 
 # Ages to impute
 imp_ages = np.arange(1, maxage + 1)
@@ -39,20 +40,31 @@ dx = [None, None]
 preg = [None, None]
 rslt = [None, None]
 
+outf.write("Imputing %s\n\n" % impvar)
+
 # Fit a Gaussian process model separately to females and males.
 for female in 0, 1:
 
-    # Drop people with no SBP data
+    outf.write("female=%d\n\n" % female)
+
     dx[female] = get_data(female, impvar, others=["SBP_MEAN"])
+    outf.write("Loaded %d x %d values\n" % tuple(dx[female].shape))
+    outf.write("%d distinct people in initial data\n\n" % dx[female].ID.unique().size)
+
+    # Drop people with no SBP data
     x = dx[female][["ID", "SBP_MEAN"]].dropna().groupby("ID").size()
     x = pd.DataFrame(x, columns=["n_SBP_mean"])
     dx[female] = pd.merge(dx[female], x, left_on="ID", right_on="ID", how='outer')
     dx[female] = dx[female].loc[dx[female].n_SBP_mean > 0, :]
     dx[female] = dx[female].drop(["SBP_MEAN", "n_SBP_mean"], axis=1)
     dx[female] = dx[female].dropna()
+    outf.write("%d x %d values after dropping non-SBP values\n" % tuple(dx[female].shape))
+    outf.write("%d distinct people after dropping non-SBP values\n\n" % dx[female].ID.unique().size)
 
     # Restrict to younger ages
     dx[female] = dx[female].loc[dx[female].Age <= maxage+1, :]
+    outf.write("%d x %d values after dropping younger age values\n" % tuple(dx[female].shape))
+    outf.write("%d distinct people after dropping younger age values\n\n" % dx[female].ID.unique().size)
 
     if female == 1:
         xf = []
@@ -163,3 +175,4 @@ for j in range(n_imp):
     out[j].close()
 
 pdf.close()
+outf.close()
