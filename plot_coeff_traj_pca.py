@@ -11,11 +11,14 @@ import matplotlib.pyplot as plt
 from config import *
 import sys
 
-mixed = sys.argv[1] == "mixed"
-ndim = int(sys.argv[2])
+bp_dir = "sbp" if sys.argv[1] == "sbp" else "dbp"
 
+mixed = sys.argv[2] == "mixed"
 di = "mixed" if mixed else "gee"
-pdf = PdfPages(os.path.join(di, "dim_%d" % ndim, "coeff_traj_pca.pdf"))
+
+ndim = int(sys.argv[3])
+
+pdf = PdfPages(os.path.join(bp_dir, di, "dim_%d" % ndim, "coeff_traj_pca.pdf"))
 
 ages = np.arange(1, maxage + 1)
 
@@ -29,7 +32,7 @@ for vn in allowed_controls:
             if growth and "Z" in vn:
                 continue
 
-            fn = os.path.join(di, "dim_%d" % ndim, "%s_%d.txt" % (vn_full, varv))
+            fn = os.path.join(bp_dir, di, "dim_%d" % ndim, "%s_%d.txt" % (vn_full, varv))
             f = open(fn)
 
             cf = []

@@ -6,20 +6,30 @@ import os
 import sys
 import json
 
+bp_var = sys.argv[1]
+if bp_var not in ("sbp", "dbp"):
+    print("usage: plot_fitted_model.py [sbp|dbp] [mixed|gee]\n")
+    sys.exit(0)
+bp_dir = bp_var
+
+tr = sys.argv[2]
+if tr not in ("mixed", "gee"):
+    print("usage: plot_fitted_model.py [sbp|dbp] [mixed|gee]\n")
+    sys.exit(0)
+
 dim = 1
-method = sys.argv[1]
-qtype = 0
+qtype = 1
 
 effects = ["age_x", "I(age_x ** 2)", "I(age_x ** 3)", "Female:age_x", "lognummeas",
            "Female:I(age_x ** 2)", "Female:I(age_x ** 3)", "Female:lognummeas",
            "PregMo_Use_cen", "I(PregMo_Use_cen ** 2)", "LactMo_Use_cen",
-           "I(LactMo_Use_cen ** 2)", "Female"]
+           "I(LactMo_Use_cen ** 2)", "Female", "HT_cen", "BMI_cen", "Female:BMI_cen"]
 
-pdf = PdfPages("model_plots.pdf")
+pdf = PdfPages(os.path.join(bp_dir, "model_plots.pdf"))
 
 for vn in allowed_controls:
 
-    fn = os.path.join(method, "dim_%d" % dim, "%s_%d.txt" % (vn, qtype))
+    fn = os.path.join(bp_dir, tr, "dim_%d" % dim, "%s_%d.txt" % (vn, qtype))
     fid = open(fn)
     pa = {}
     for line in fid:
@@ -39,7 +49,9 @@ for vn in allowed_controls:
     male_sbp = pa["age_x"]*age_x + pa["I(age_x ** 2)"]*age_x**2 + pa["I(age_x ** 3)"]*age_x**3
     female_sbp = (male_sbp + pa["Female:age_x"]*age_x + pa["Female:I(age_x ** 2)"]*age_x**2 +
                   pa["Female:I(age_x ** 3)"]*age_x**3 + pa["Female"])
-
+    mm = (np.mean(male_sbp) + np.mean(female_sbp)) / 2
+    male_sbp -= mm
+    female_sbp -= mm
     plt.clf()
     plt.axes([0.13, 0.12, 0.67, 0.8])
     plt.title(vn)
@@ -58,6 +70,9 @@ for vn in allowed_controls:
     lognummeas = np.log10(nummeas)
     male_lnm = pa["lognummeas"] * lognummeas
     female_lnm = male_lnm + pa["Female:lognummeas"] * lognummeas
+    mm = (np.mean(male_lnm) + np.mean(female_lnm)) / 2
+    male_lnm -= mm
+    female_lnm -= mm
     plt.clf()
     plt.axes([0.13, 0.13, 0.67, 0.8])
     plt.title(vn)
@@ -76,6 +91,7 @@ for vn in allowed_controls:
     pregmo_cen = pregmo - cen["PregMo"]
     pregmo_cen2 = pregmo_cen**2
     female_pregmo = pa["PregMo_Use_cen"] * pregmo_cen + pa["I(PregMo_Use_cen ** 2)"] * pregmo_cen2
+    female_pregmo -= female_pregmo.mean()
     plt.clf()
     plt.title(vn)
     plt.plot(pregmo, female_pregmo, '-', lw=4)
@@ -85,14 +101,50 @@ for vn in allowed_controls:
     pdf.savefig()
 
     # lactmo plots
-    lactmo = np.arange(0, 9)
-    lactmo_cen = pregmo - cen["PregMo"]
-    lactmo_cen2 = pregmo_cen**2
-    female_lactmo = pa["PregMo_Use_cen"] * pregmo_cen + pa["I(PregMo_Use_cen ** 2)"] * pregmo_cen2
+    lactmo = np.arange(0, 24)
+    lactmo_cen = lactmo - cen["LactMo"]
+    lactmo_cen2 = lactmo_cen**2
+    female_lactmo = pa["LactMo_Use_cen"] * lactmo_cen + pa["I(LactMo_Use_cen ** 2)"] * lactmo_cen2
+    female_lactmo -= female_lactmo.mean()
     plt.clf()
     plt.title(vn)
-    plt.plot(lactmo, female_pregmo, '-', lw=4)
-    plt.xlabel("Month of pregnancy", size=16)
+    plt.plot(lactmo, female_lactmo, '-', lw=4)
+    plt.xlabel("Month of lactation", size=16)
+    plt.ylabel("SBP change", size=16)
+    plt.grid(True)
+    pdf.savefig()
+
+    # Current BMI plots
+    bmi = np.arange(12, 25)
+    bmi_cen = bmi - cen["BMI"]
+    male_bmi = pa["BMI_cen"] * bmi_cen
+    female_bmi = male_bmi + pa["Female"] + pa["Female:BMI_cen"] * bmi_cen
+    mm = (np.mean(male_bmi) + np.mean(female_bmi)) / 2
+    male_bmi -= mm
+    female_bmi -= mm
+    plt.clf()
+    plt.axes([0.13, 0.13, 0.67, 0.8])
+    plt.title(vn)
+    plt.plot(bmi, female_bmi, '-', lw=4, label="Female")
+    plt.plot(bmi, male_bmi, '-', lw=4, label="Male")
+    plt.xlabel("Adult BMI", size=16)
+    plt.ylabel("SBP change", size=16)
+    plt.grid(True)
+    ha, lb = plt.gca().get_legend_handles_labels()
+    leg = plt.figlegend(ha, lb, "center right")
+    leg.draw_frame(False)
+    pdf.savefig()
+
+    # Current height plots
+    hgt = np.arange(120, 183)
+    hgt_cen = hgt - cen["HT"]
+    hgt_effect = pa["HT_cen"] * hgt_cen
+    hgt_effect -= hgt_effect.mean()
+    plt.clf()
+    plt.axes([0.13, 0.13, 0.67, 0.8])
+    plt.title(vn)
+    plt.plot(hgt, hgt_effect, '-', lw=4)
+    plt.xlabel("Adult height", size=16)
     plt.ylabel("SBP change", size=16)
     plt.grid(True)
     pdf.savefig()
