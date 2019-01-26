@@ -18,18 +18,17 @@ if tr not in ("mixed", "gee"):
     sys.exit(0)
 
 dim = 1
-qtype = 1
 
 effects = ["age_x", "I(age_x ** 2)", "I(age_x ** 3)", "Female:age_x", "lognummeas",
            "Female:I(age_x ** 2)", "Female:I(age_x ** 3)", "Female:lognummeas",
            "PregMo_Use_cen", "I(PregMo_Use_cen ** 2)", "LactMo_Use_cen",
            "I(LactMo_Use_cen ** 2)", "Female", "HT_cen", "BMI_cen", "Female:BMI_cen"]
 
-pdf = PdfPages(os.path.join(bp_dir, "model_plots.pdf"))
+pdf = PdfPages(os.path.join(bp_dir, tr, "dim_%d" % dim, "model_plots.pdf"))
 
 for vn in allowed_controls:
 
-    fn = os.path.join(bp_dir, tr, "dim_%d" % dim, "%s_%d.txt" % (vn, qtype))
+    fn = os.path.join(bp_dir, tr, "dim_%d" % dim, "%s.txt" % vn)
     fid = open(fn)
     pa = {}
     for line in fid:
@@ -40,7 +39,7 @@ for vn in allowed_controls:
 	            pa[ef] = float(tok[0])
     fid.close()
 
-    fid = open("%s_cen.json" % vn)
+    fid = open(os.path.join(bp_dir, tr, "dim_%d" % dim, "%s_cen.json" % vn))
     cen = json.load(fid)
 
     # Age plots

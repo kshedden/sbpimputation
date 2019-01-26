@@ -11,6 +11,9 @@ import matplotlib.pyplot as plt
 from config import *
 import sys
 
+if len(sys.argv) != 4:
+    raise ValueError("plot_coeff_traj: incorrect number of arguments")
+
 bp_dir = "sbp" if sys.argv[1] == "sbp" else "dbp"
 
 mixed = sys.argv[2] == "mixed"
@@ -27,49 +30,64 @@ for vn in allowed_controls:
 
         vn_full = vn + ("_growth" if growth else "")
 
-        for varv in 0, 1:
+        if growth and "Z" in vn:
+            continue
 
-            if growth and "Z" in vn:
+        fn = os.path.join(bp_dir, di, "dim_%d" % ndim, "%s.txt" % vn_full)
+        f = open(fn)
+
+        cf = []
+        for line in f:
+            if line.startswith("BEGIN-PROJECTION"):
+                break
+
+        cx = []
+        for line in f:
+            if line.startswith("--") or line.startswith("END-PROJECTION"):
+                cf.append(cx)
+                cx = []
                 continue
+            if line.startswith("END-PROJECTION"):
+                break
+            cx.append(line.rstrip())
 
-            fn = os.path.join(bp_dir, di, "dim_%d" % ndim, "%s_%d.txt" % (vn_full, varv))
-            f = open(fn)
+        cf[0] = [float(x) for x in cf[0]]
+        proj = np.asarray(cf[0])
 
-            cf = []
-            for line in f:
-                if line.startswith("BEGIN-TRAJ"):
-                    cx = []
-                    for line in f:
-                        if line.startswith("END-TRAJ"):
-                            break
-                        cx.append(line.rstrip().split())
-                    cols = cx[0]
-                    cx = cx[1:]
-                    cx = pd.DataFrame(cx, columns=cols)
-                    for c in cx.columns:
-                        cx[c] = pd.to_numeric(cx[c])
-                    cf.append(cx)
+        cf[1] = [float(x) for x in cf[1]]
+        vx = np.asarray(cf[1])
 
-            for jr, rv in enumerate(cf):
+        from io import StringIO
 
-                if growth:
-                    rv.age += 1.5
+        params = "\n".join(cf[2])
+        params = pd.read_csv(StringIO(params), header=None, index_col=0)
+        params = params[1]
 
-                plt.clf()
-                plt.axes([0.15, 0.11, 0.8, 0.8])
-                plt.grid(True)
-                plt.plot(rv.age, rv.coeff, '-', color='orange', lw=4)
-                plt.fill_between(
-                    rv.age,
-                    rv.coeff - 2 * rv.se,
-                    rv.coeff + 2 * rv.se,
-                    color='grey',
-                    alpha=0.5)
-                plt.plot([1, maxage], [0, 0], '-', color='black', lw=4)
-                plt.xlabel("Age", size=15)
-                plt.ylabel("Coefficient for %s%s" % (vn, " growth" if growth else ""), size=15)
-                if varv == 1:
-                    plt.title("Control for height/BMI at time of SBP")
-                pdf.savefig()
+        cov = "\n".join(cf[3])
+        cov = pd.read_csv(StringIO(cov), index_col=0)
+
+        age = np.arange(1, len(proj)+1, dtype=np.float64)
+        if growth:
+            age += 1.5
+
+        vn1 = vn + "_pc0"
+        traj = params[vn1] * proj
+        se = np.sqrt(cov.loc[vn1, vn1])
+
+        plt.clf()
+        plt.axes([0.15, 0.11, 0.8, 0.8])
+        plt.grid(True)
+        plt.plot(age, traj, '-', color='orange', lw=4)
+        plt.fill_between(
+            age,
+            traj - 2 * se * proj,
+            traj + 2 * se * proj,
+            color='grey',
+            alpha=0.5)
+        plt.plot([1, maxage], [0, 0], '-', color='black', lw=4)
+        plt.xlabel("Age", size=15)
+        plt.ylabel("Coefficient for %s%s" % (vn, " growth" if growth else ""), size=15)
+        plt.title("Control for height/BMI at time of SBP")
+        pdf.savefig()
 
 pdf.close()

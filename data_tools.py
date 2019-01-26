@@ -48,5 +48,6 @@ def get_data(female, impvar, others=None):
         vars.extend(others)
 
     dx = df.loc[df.Female == female, vars]
+    dx["ID"] = dx["ID"].astype(np.int)
 
     return dx
