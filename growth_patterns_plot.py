@@ -30,6 +30,7 @@ pdf = PdfPages("%s/mixed/dim_%d/growth_patterns_plot%s.pdf" % (bp_var, ndim, sfx
 lb = ["1→1", "0→0", "-1→0", "0→-1", "-1→-1"]
 
 cols = ["#003f5c", "#bc5090", "#ff6361", "#58508d", "#ffa600"]
+syms = ['s', 'o', 'x', '+', 'D']
 
 next(fid) # Skip ```
 
@@ -81,7 +82,10 @@ while True:
     for i, j in enumerate(jj):
         plt.plot([j, j], [tab.Est[i]-fq*tab.SE[i], tab.Est[i]+fq*tab.SE[i]], color=cols[i%5])
         if tab.SE[i] != 0:
-            plt.plot([j], [tab.Est[i]], 'o', color=cols[i%5], ms=5)
+            dl = {"mfc": "none", "color": cols[i%5], "ms": 5}
+            if j < 5:
+                dl["label"] = lb[j]
+            plt.plot([j], [tab.Est[i]], syms[i%5], **dl)
         else:
             plt.plot([j], [tab.Est[i]], 's', mfc="none", mec=cols[i%5], ms=5)
 
@@ -90,21 +94,23 @@ while True:
     ax.spines['left'].set_position(('outward', 10))
     ax.spines['bottom'].set_position(('outward', 10))
     plt.ylabel("Change in %s (mm Hg)" % bp_var.upper(), size=16)
-    plt.figtext(0.245, 0.04, head[0], ha='center')
-    plt.figtext(0.549, 0.04, head[1], ha='center')
-    plt.figtext(0.845, 0.04, head[2], ha='center')
-    plt.figtext(0.002, 0.084, "Childhood %s z:" % group.replace("HT", "ht"), ha="left")
-    plt.figtext(0.002, 0.04, "Adult %s:" % agrp.replace("Ht", "ht"), ha="left")
+    plt.figtext(0.05, 0.074, "Adult %s:" % agrp.replace("Ht", "ht"), ha="left", va='bottom')
+
+    plt.figtext(0.17, 0.955, "Childhood %s z:" % group.replace("HT", "ht"), ha="left")
 
     ax.set_xticks(jj)
-    ax.set_xticklabels([x for x in lb + lb + lb])
-
-    for i, j in enumerate(jj):
-        ax.get_xticklabels()[i].set_color(cols[i%5])
+    lbs = ["" for x in lb + lb + lb]
+    lbs[2] = head[0]
+    lbs[7] = head[1]
+    lbs[12] = head[2]
+    ax.set_xticklabels(lbs)
 
     plt.xlim(-0.5, 16.5)
+
+    ha, lb = plt.gca().get_legend_handles_labels()
+    leg = plt.figlegend(ha, lb, "upper center", ncol=5, handletextpad=0.0001)
+    leg.draw_frame(False)
 
     pdf.savefig()
 
 pdf.close()
-
