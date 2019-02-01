@@ -2,13 +2,19 @@ import pandas as pd
 import numpy as np
 from config import *
 
+log = open("data_tools.log", "w")
+
 # Read the cohort file
 pa = "/nfs/kshedden/Beverly_Strassmann/Cohort_2018.csv.gz"
 df = pd.read_csv(pa)
 
+log.write("%d distinct subjects\n" % df.ID.unique().size)
 df = df.loc[df.Bamako.isin([0, 1]), :]
+log.write("%d after requiring Bamako in (0, 1)\n" % df.ID.unique().size)
 df = df.loc[df.Ht_Lag_Flag!=4, :]
+log.write("%d after requiring Ht_Lag_Flag!=4\n" % df.ID.unique().size)
 df = df.loc[df.survival==1, :]
+log.write("%d after requiring survival=1\n" % df.ID.unique().size)
 
 # Modify some of the variable names
 df["Sex"] = df["Sex"].replace({0: "Female", 1: "Male"})
@@ -35,6 +41,9 @@ df["Lactating"] = df.ReproStat.isin([3])
 # Require people to have at least one SBP measurement
 idx = df.loc[pd.notnull(df.SBP_MEAN), :].groupby("ID").head(1)["ID"]
 df = df.loc[df.ID.isin(idx), :]
+log.write("%d after requiring at least one SBP measurement\n" % df.ID.unique().size)
+
+log.close()
 
 def get_data(female, impvar, others=None):
     """

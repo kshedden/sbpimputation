@@ -86,6 +86,8 @@ fid = open(os.path.join(bp_dir, d1, d2, "%s_cen.json" % impvar_full), "w")
 fid.write(json.dumps(cenv))
 fid.close()
 
+log = open(os.path.join(bp_dir, d1, d2, "%s.log" % impvar_full), "w")
+
 # The variable names for the trajectory of childhood exposures
 vx = [(impvar + "%d") % a for a in range(1, 11)]
 
@@ -154,8 +156,8 @@ class mimi(object):
     def update(self):
 
         # Create an array to hold the gridded values of impvar
-        di = pd.read_csv(
-            os.path.join("imputed_data", "%s_imp_%d.csv" % (impvar, self.ix)))
+        fn = os.path.join("imputed_data", "%s_imp_%d.csv" % (impvar, self.ix))
+        di = pd.read_csv(fn)
         di["ID"] = di["ID"].astype(np.int)
         dd = di[vx]
 
@@ -171,6 +173,11 @@ class mimi(object):
         dx = pd.merge(
             df.loc[:, vars], dbs, left_on="ID", right_on="ID", how="left")
 
+        if self.ix == 0:
+            log.write("%d distinct subjects in imputed data\n" % dbs.ID.unique().size)
+            log.write("%d distinct subjects in cohort file data\n" % df.ID.unique().size)
+            log.write("%d distinct subjects in merged file data\n" % dx.ID.unique().size)
+
         # Merge in imputed puberty variables
         for vn in "Breast_Stage_Use_Z", "log2T_use_Z":
             dd = pd.read_csv(os.path.join("imputed_data_puberty", "%s_imp_%d.csv" % (vn, self.ix)))
@@ -181,6 +188,9 @@ class mimi(object):
             dd.loc[ix, vn] = dd.loc[ix, vn + "_x"]
             dd.loc[iy, vn] = dd.loc[iy, vn + "_y"]
             dx = dd.drop([vn + "_x", vn + "_y"], axis=1)
+            if self.ix == 0:
+                log.write("%d distinct subjects after merging %s\n" %
+                          (dx.ID.unique().size, vn))
 
         # Code testosterone for females, breast stage for males as zero
         dx.loc[dx.Female == 1, "log2T_use_Z"] = 0
@@ -188,6 +198,9 @@ class mimi(object):
 
         dx = dx.loc[pd.notnull(dx[bp_var]), :]
         self.data = dx.dropna()
+
+        if self.ix == 0:
+            log.write("%d distinct subjects in merged file data\n" % self.data.dropna().ID.unique().size)
 
         if self.ix == 0:
             dt = self.data[["ID", bp_var]].copy()
@@ -287,3 +300,4 @@ if not mixed:
     out.write("%s\n" % rslt.results[0].cov_struct.summary())
 
 out.close()
+log.close()

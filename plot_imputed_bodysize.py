@@ -41,8 +41,8 @@ def plot(impvar):
 
             # Plot the imputed data
             for j in range(5):
-                plt.plot(ages, dm[j][idx][0:len(ages)], color='purple',
-                         lw=4, alpha=0.5)
+                plt.plot(ages, dm[j][idx][0:len(ages)], color='grey',
+                         alpha=0.5)
 
             # The mean is the same, only plot it once
             plt.plot(ages, dm[0][idx][len(ages):], color='blue', lw=4)
@@ -57,7 +57,7 @@ def plot(impvar):
             if jj > 20:
                 break
 
-pdf = PdfPages("plot_imputed.pdf")
+pdf = PdfPages("plot_imputed_bodysize.pdf")
 for iv in allowed_controls:
     plot(iv)
 pdf.close()

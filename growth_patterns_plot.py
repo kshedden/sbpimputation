@@ -51,7 +51,9 @@ while True:
     se_table = [x[35:].lstrip() for x in se_table]
     next(fid)
 
-    head = [re.sub("(:)([1-9])", r":+\2", x) for x in head]
+    agrp = head[0].split(":")[0]
+    head = [x.split(":")[1] for x in head]
+    head = [re.sub("^([1-9])", r"+\1", x) for x in head]
 
     table = pd.read_csv(StringIO("\n".join(table)), delim_whitespace=True, header=None)
     table.columns = head
@@ -73,33 +75,34 @@ while True:
 
     plt.figure(figsize=(10, 5))
     plt.clf()
-    ax = plt.axes([0.1, 0.15, 0.88, 0.75])
-    plt.plot([-1, 15], [0, 0], '-', color='grey')
-    jj = np.arange(tab.shape[0])
-    for j in jj:
-        plt.plot([j, j], [tab.Est[j]-fq*tab.SE[j], tab.Est[j]+fq*tab.SE[j]], color=cols[j%5])
-        if tab.SE[j] != 0:
-            plt.plot([j], [tab.Est[j]], 'o', color=cols[j%5], ms=5)
+    ax = plt.axes([0.12, 0.15, 0.85, 0.75])
+    plt.plot([-1, 17], [0, 0], '-', color='grey')
+    jj = np.r_[0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16]
+    for i, j in enumerate(jj):
+        plt.plot([j, j], [tab.Est[i]-fq*tab.SE[i], tab.Est[i]+fq*tab.SE[i]], color=cols[i%5])
+        if tab.SE[i] != 0:
+            plt.plot([j], [tab.Est[i]], 'o', color=cols[i%5], ms=5)
         else:
-            plt.plot([j], [tab.Est[j]], 's', mfc="none", mec=cols[j%5], ms=5)
+            plt.plot([j], [tab.Est[i]], 's', mfc="none", mec=cols[i%5], ms=5)
 
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.spines['left'].set_position(('outward', 10))
     ax.spines['bottom'].set_position(('outward', 10))
-    plt.ylabel("Change in %s (mm/Hg)" % bp_var.upper(), size=16)
-    plt.figtext(0.29, 0.04, head[0], ha='center')
-    plt.figtext(0.54, 0.04, head[1], ha='center')
-    plt.figtext(0.78, 0.04, head[2], ha='center')
-    plt.title("Childhood %s trajectory" % group)
+    plt.ylabel("Change in %s (mm Hg)" % bp_var.upper(), size=16)
+    plt.figtext(0.245, 0.04, head[0], ha='center')
+    plt.figtext(0.549, 0.04, head[1], ha='center')
+    plt.figtext(0.845, 0.04, head[2], ha='center')
+    plt.figtext(0.002, 0.084, "Childhood %s z:" % group.replace("HT", "ht"), ha="left")
+    plt.figtext(0.002, 0.04, "Adult %s:" % agrp.replace("Ht", "ht"), ha="left")
 
     ax.set_xticks(jj)
     ax.set_xticklabels([x for x in lb + lb + lb])
 
-    for j in jj:
-        ax.get_xticklabels()[j].set_color(cols[j%5])
+    for i, j in enumerate(jj):
+        ax.get_xticklabels()[i].set_color(cols[i%5])
 
-    plt.xlim(-0.5, 14.5)
+    plt.xlim(-0.5, 16.5)
 
     pdf.savefig()
 
