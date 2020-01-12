@@ -77,17 +77,17 @@ for vn in allowed_controls:
         plt.clf()
         plt.axes([0.15, 0.11, 0.8, 0.8])
         plt.grid(True)
-        plt.plot(age, traj, '-', color='orange', lw=4)
+        plt.plot(age, traj, '-', color='black', lw=4)
         plt.fill_between(
             age,
             traj - 2 * se * proj,
             traj + 2 * se * proj,
             color='grey',
             alpha=0.5)
-        plt.plot([1, maxage], [0, 0], '-', color='black', lw=4)
-        plt.xlabel("Age", size=15)
+        plt.plot([1, maxage], [0, 0], '-', color='black', lw=3)
+        plt.xlabel("Age in years", size=15)
         plt.ylabel("Coefficient for %s%s" % (vn, " growth" if growth else ""), size=15)
-        plt.title("Control for height/BMI at time of SBP")
+        plt.title("Control for height and BMI at time of SBP")
         pdf.savefig()
 
 pdf.close()

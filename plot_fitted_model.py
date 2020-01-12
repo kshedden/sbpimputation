@@ -22,7 +22,7 @@ dim = 1
 effects = ["age_x", "I(age_x ** 2)", "I(age_x ** 3)", "Female:age_x", "lognummeas",
            "Female:I(age_x ** 2)", "Female:I(age_x ** 3)", "Female:lognummeas",
            "PregMo_Use_cen", "I(PregMo_Use_cen ** 2)", "LactMo_Use_cen",
-           "I(LactMo_Use_cen ** 2)", "Female", "HT_cen", "BMI_cen", "Female:BMI_cen"]
+           "I(LactMo_Use_cen ** 2)", "Female", "HT_cen", "BMI_cen"]
 
 pdf = PdfPages(os.path.join(bp_dir, tr, "dim_%d" % dim, "model_plots.pdf"))
 
@@ -116,21 +116,15 @@ for vn in allowed_controls:
     # Current BMI plots
     bmi = np.arange(12, 25)
     bmi_cen = bmi - cen["BMI"]
-    male_bmi = pa["BMI_cen"] * bmi_cen
-    female_bmi = male_bmi + pa["Female"] + pa["Female:BMI_cen"] * bmi_cen
-    mm = (np.mean(male_bmi) + np.mean(female_bmi)) / 2
-    male_bmi -= mm
-    female_bmi -= mm
+    bmi_effect = pa["BMI_cen"] * bmi_cen
+    bmi_effect -= bmi_effect.mean()
     plt.clf()
     plt.axes([0.13, 0.13, 0.67, 0.8])
     plt.title(vn)
-    plt.plot(bmi, female_bmi, '-', lw=4, label="Female")
-    plt.plot(bmi, male_bmi, '-', lw=4, label="Male")
+    plt.plot(bmi, bmi_effect, '-', lw=4)
     plt.xlabel("Adult BMI", size=16)
     plt.ylabel("SBP change", size=16)
     plt.grid(True)
-    ha, lb = plt.gca().get_legend_handles_labels()
-    leg = plt.figlegend(ha, lb, "center right")
     leg.draw_frame(False)
     pdf.savefig()
 

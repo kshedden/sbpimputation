@@ -8,26 +8,31 @@ import numpy as np
 import sys, os
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
+from scipy.stats.distributions import norm
 from config import *
 
 bp_var = sys.argv[1]
-if bp_var not in ("sbp", "dbp"):
-    print("usage: growth_patterns.py [sbp|dbp] dim\n")
+if len(sys.argv) != 5 or bp_var not in ("sbp", "dbp"):
+    print("usage: growth_patterns.py [sbp|dbp] dim pcs_idx [none|zf|zm]\n")
     sys.exit(0)
 bp_dir = bp_var
 
 ndim = int(sys.argv[2])
 
-# 0, 1, or 2 for reference adult body size being -/0/+ relative to the set point
-# Default is 1
-hx_idx = 1
+# Growth pattern to compare to reference
+pcs_idx = int(sys.argv[3])
 
-# Index of reference child growth exposure, default is 1
-pcs_idx = 1
+# If not "none", change adult height or BMI by one Z-score, not
+# by a fixed reference amount.  Set to either "zf" to adjust
+# by female Z-scores, or "zm" to adjust by male Z-scores.
+zs = sys.argv[4]
+if zs not in ("none", "zf", "zm"):
+	1/0
 
-sfx = ""
-if hx_idx != 1 or pcs_idx != 1:
-    sfx = "_%d_%d" % (hx_idx, pcs_idx)
+sfx = "_1_%d" % pcs_idx
+
+if zs != "none":
+    sfx = sfx + "_" + zs
 
 ages = np.arange(1, maxage + 1)
 
@@ -40,6 +45,12 @@ def genpat(d, sd):
 
     x = np.ones(d) * sd
     pat.append(["Always above mean (Z=1 throughout)", x])
+
+    x = np.linspace(0, 1, d) * sd
+    pat.append(["High catch up (Z goes from 0 to 1)", x])
+
+    x = np.linspace(1, 0, d) * sd
+    pat.append(["High catch down (Z goes from 1 to 0)", x])
 
     x = np.zeros(d) * sd
     pat.append(["Always at mean (Z=0 throughout)", x])
@@ -105,36 +116,47 @@ for vn in allowed_controls:
 
         # HT_cen
         # BMI_cen
-        # Female:BMI_cen
         # ?_pc0            ?=childhood exposure variable
         # HT_cen:?_pc0
         # BMI_cen:?_pc0
 
-        for jx in 0, 1, 2:
+        for jx in 0, 1:
             if jx == 0:
-                # Ht
+                # Control for current Ht
                 ivn = "Ht" # an adult body dimension
                 vu = "cm"  # units for ivn
-                hxs = 5    # step size for varying ivn
-                v0 = np.r_[1, 0, 0, 0, 0, 0]
-                v1 = np.r_[0, 0, 0, 1, 0, 0]
-                v2 = np.r_[0, 0, 0, 0, 1, 0]
+                if zs == "none":
+                    hxs = 5
+                    hxn = str(hxs) + vu
+                elif zs == "zf":
+                    hxs = 5.5
+                    hxn = "1SD(F)"
+                elif zs == "zm":
+                    hxs = 7.1
+                    hxn = "1SD(M)"
+                else:
+                    1/0
+                v0 = np.r_[1, 0, 0, 0, 0]
+                v1 = np.r_[0, 0, 1, 0, 0]
+                v2 = np.r_[0, 0, 0, 1, 0]
             elif jx == 1:
-                # BMI for males
-                ivn = "MBMI"
-                vu = ""
-                hxs = 3
-                v0 = np.r_[0, 1, 0, 0, 0, 0]
-                v1 = np.r_[0, 0, 0, 1, 0, 0]
-                v2 = np.r_[0, 0, 0, 0, 0, 1]
-            elif jx == 2:
-                # BMI for females
-                ivn = "FBMI"
-                vu = ""
-                hxs = 3
-                v0 = np.r_[0, 1, 1, 0, 0, 0]
-                v1 = np.r_[0, 0, 0, 1, 0, 0]
-                v2 = np.r_[0, 0, 0, 0, 0, 1]
+                # Control for current BMI
+                ivn = "BMI"
+                vu = "kg/m^2"
+                if zs == "none":
+                    hxs = 3
+                    hxn = str(hxs) + vu
+                elif zs == "zf":
+                    hxs = 2.5
+                    hxn = "1SD(F)"
+                elif zs == "zm":
+                    hxs = 1.8
+                    hxn = "1SD(M)"
+                else:
+                    1/0
+                v0 = np.r_[0, 1, 0, 0, 0]
+                v1 = np.r_[0, 0, 1, 0, 0]
+                v2 = np.r_[0, 0, 0, 0, 1]
             else:
                 1/0
 
@@ -144,7 +166,7 @@ for vn in allowed_controls:
 
             # The reference point against which comparisons are made
             pcs_ref = np.dot(pa[pcs_idx][1], proj)
-            hx_ref = [-hxs, 0, hxs][hx_idx]
+            hx_ref = 0
             u0 = hx_ref*v0 + pcs_ref*v1 + hx_ref*pcs_ref*v2
 
             for hx in -hxs, 0, hxs:
@@ -156,16 +178,23 @@ for vn in allowed_controls:
 
                     u = hx*v0 + pcs*v1 + hx*pcs*v2
                     u -= u0
+
                     vy.append(np.dot(u, params[1]))
                     vs.append(np.dot(u, np.dot(cov, u)))
-            vy = np.reshape(np.asarray(vy), (-1, 5)).T
-            vs = np.reshape(np.asarray(vs), (-1, 5)).T
-            col = ["%s:-%d%s" % (ivn, hxs, vu), "%s:0%s" % (ivn, vu), "%s:%d%s" % (ivn, hxs, vu)]
-            vy = pd.DataFrame(vy, index=vx[0:5], columns=col)
+
+            vy = np.reshape(np.asarray(vy), (-1, 7)).T
+            vs = np.reshape(np.asarray(vs), (-1, 7)).T
+            col = ["%s:-%s" % (ivn, hxn), "%s:0" % ivn, "%s:+%s" % (ivn, hxn)]
+            vy = pd.DataFrame(vy, index=vx[0:7], columns=col)
             fid.write(vy.to_string())
             fid.write("\n\n" + vnt + " Standard errors:\n")
-            vs = pd.DataFrame(vs, index=vx[0:5], columns=col)
+            vs = pd.DataFrame(vs, index=vx[0:7], columns=col)
             fid.write(vs.to_string())
+            vz = vy / vs
+            vp = 2*norm.cdf(-np.abs(vz))
+            vp = pd.DataFrame(vp, index=vz.index, columns=vz.columns)
+            fid.write("\n\n" + vnt + " p-values:\n")
+            fid.write(vp.to_string())
             fid.write("\n\n")
 
 fid.write("```\n")

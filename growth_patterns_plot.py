@@ -15,24 +15,32 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 bp_var = sys.argv[1]
 if bp_var not in ("sbp", "dbp"):
-    print("usage: growth_patterns.py [sbp|dbp] dim\n")
+    print("usage: growth_patterns_plot.py [sbp|dbp] dim\n")
     sys.exit(0)
 bp_dir = bp_var
 
 ndim = int(sys.argv[2])
 
-sfx = ""
+# Select the reference category
+sfx = "_1_3"
 
 # Could make this more general
-fid = open("%s/mixed/dim_%d/growth_patterns%s.txt" % (bp_var, ndim, sfx))
+fname = "%s/mixed/dim_%d/growth_patterns%s.txt" % (bp_var, ndim, sfx)
+print("Reading %s\n" % fname)
+fid = open(fname)
+
 pdf = PdfPages("%s/mixed/dim_%d/growth_patterns_plot%s.pdf" % (bp_var, ndim, sfx))
 
-lb = ["1→1", "0→0", "-1→0", "0→-1", "-1→-1"]
+lb = ["1→1", "0→1", "1→0", "0→0", "-1→0", "0→-1", "-1→-1"]
 
-cols = ["#003f5c", "#bc5090", "#ff6361", "#58508d", "#ffa600"]
-syms = ['s', 'o', 'x', '+', 'D']
+from turbo_colormap import turbo_colormap_data
+c = turbo_colormap_data
+ii = np.linspace(15, len(c) - 30, 7) # Avoid very dark colors
+ii = np.round(ii).astype(np.int)
+cols = [c[i] for i in ii]
+syms = ['s', 'o', 'x', '+', 'D', '>', '<']
 
-next(fid) # Skip ```
+next(fid) # Skip initial ```
 
 fq = norm.ppf(1 - 0.025/14)
 
@@ -41,15 +49,22 @@ while True:
     group = next(fid).rstrip()
     if group == "```":
         break
+
     head = next(fid).strip().split()
-    table = [next(fid).rstrip() for k in range(5)]
-    rows = [x[0:35].rstrip() for x in table]
-    table = [x[35:].lstrip() for x in table]
+    table = [next(fid).rstrip() for k in range(7)]
+
+    rows = [x[0:36].rstrip() for x in table]
+    table = [x[36:].lstrip() for x in table]
     next(fid)
     next(fid)
     next(fid)
-    se_table = [next(fid).rstrip() for k in range(5)]
-    se_table = [x[35:].lstrip() for x in se_table]
+    se_table = [next(fid).rstrip() for k in range(7)]
+    se_table = [x[36:].lstrip() for x in se_table]
+    next(fid)
+    next(fid)
+    next(fid)
+    pv_table = [next(fid).rstrip() for k in range(7)]
+    pv_table = [x[36:].lstrip() for x in se_table]
     next(fid)
 
     agrp = head[0].split(":")[0]
@@ -64,7 +79,7 @@ while True:
     se_table.columns = head
     se_table.index = rows
 
-    if group not in ("HT", "BMI"):
+    if group not in ("HT", "BMI", "WT"):
         print("Skipping %s" % group)
         continue
     print("Processing %s" % group)
@@ -74,43 +89,54 @@ while True:
     tab = pd.concat((table, se_table), axis=1)
     tab.columns = ["Est", "SE"]
 
-    plt.figure(figsize=(10, 5))
+    plt.figure(figsize=(6, 3.5))
     plt.clf()
-    ax = plt.axes([0.12, 0.15, 0.85, 0.75])
-    plt.plot([-1, 17], [0, 0], '-', color='grey')
-    jj = np.r_[0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16]
+    ax = plt.axes([0.18, 0.17, 0.8, 0.7])
+    plt.plot([-1, 25], [0, 0], '-', color='grey')
+    jj = np.r_[0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21, 22]
     for i, j in enumerate(jj):
-        plt.plot([j, j], [tab.Est[i]-fq*tab.SE[i], tab.Est[i]+fq*tab.SE[i]], color=cols[i%5])
-        if tab.SE[i] != 0:
-            dl = {"mfc": "none", "color": cols[i%5], "ms": 5}
-            if j < 5:
-                dl["label"] = lb[j]
-            plt.plot([j], [tab.Est[i]], syms[i%5], **dl)
+        if j < len(syms):
+            plt.plot([j, j], [tab.Est[i]-fq*tab.SE[i], tab.Est[i]+fq*tab.SE[i]],
+                color=cols[i%len(syms)], lw=4, label=lb[j])
         else:
-            plt.plot([j], [tab.Est[i]], 's', mfc="none", mec=cols[i%5], ms=5)
+            plt.plot([j, j], [tab.Est[i]-fq*tab.SE[i], tab.Est[i]+fq*tab.SE[i]],
+                color=cols[i%len(syms)], lw=4)
+#        if tab.SE[i] != 0:
+#            dl = {"mfc": "none", "color": cols[i%len(syms)], "ms": 7}
+#            if j < len(syms):
+#                dl["label"] = lb[j]
+#            plt.plot([j], [tab.Est[i]], syms[i%len(syms)], **dl)
+#        else:
+#            plt.plot([j], [tab.Est[i]], 's', mfc="none", mec=cols[i%len(syms)], ms=5)
 
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.spines['left'].set_position(('outward', 10))
     ax.spines['bottom'].set_position(('outward', 10))
-    plt.ylabel("Change in %s (mm Hg)" % bp_var.upper(), size=16)
-    plt.figtext(0.05, 0.074, "Adult %s:" % agrp.replace("Ht", "ht"), ha="left", va='bottom')
+    plt.ylabel("%s difference (mm Hg)" % bp_var.upper(), size=12)
+    plt.figtext(0.01, 0.01, "Adult %s\ndifference:" % agrp.replace("Ht", "height"),
+                ha="left", va='bottom', size=12)
+    plt.figtext(0.01, 0.93, "Childhood %s z:" % group.replace("HT", "height"), ha="left", size=12)
 
-    plt.figtext(0.17, 0.955, "Childhood %s z:" % group.replace("HT", "ht"), ha="left")
+    ax.set_xticks([3, 11, 19])
+    for j in range(len(head)):
+        if "kg" in head[j]:
+            head[j] = head[j].replace("kg/m^2", "{\sf kg}/{\sf m}^2")
+            head[j] = "$" + head[j] + "$"
+    ax.set_xticklabels(head)
 
-    ax.set_xticks(jj)
-    lbs = ["" for x in lb + lb + lb]
-    lbs[2] = head[0]
-    lbs[7] = head[1]
-    lbs[12] = head[2]
-    ax.set_xticklabels(lbs)
+    plt.xlim(-0.5, 22.5)
 
-    plt.xlim(-0.5, 16.5)
-
-    ha, lb = plt.gca().get_legend_handles_labels()
-    leg = plt.figlegend(ha, lb, "upper center", ncol=5, handletextpad=0.0001)
+    ha, lbx = plt.gca().get_legend_handles_labels()
+    leg = plt.figlegend(ha, lbx, (0.3, 0.87), ncol=4)
     leg.draw_frame(False)
 
+    for x in 7, 15:
+        plt.plot([x, x], [-10, 10], '-', color='grey')
+
+    plt.plot([11,], [0,], '|', ms=5, color='black')
+
+    plt.ylim(-10, 10)
     pdf.savefig()
 
 pdf.close()

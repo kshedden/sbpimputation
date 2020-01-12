@@ -91,7 +91,7 @@ log = open(os.path.join(bp_dir, d1, d2, "%s.log" % impvar_full), "w")
 # The variable names for the trajectory of childhood exposures
 vx = [(impvar + "%d") % a for a in range(1, 11)]
 
-# Second derivatives
+# Second derivatives for smoothing the PC's
 p = len(vx)-2 if growth else len(vx)
 if growth:
     p -= 1
@@ -146,6 +146,7 @@ plt.xlabel("Age", size=15)
 pdf.savefig()
 pdf.close()
 
+# The names of the PC score variables
 vb = ["%s_pc%d" % (impvar, j) for j in range(proj.shape[1])]
 
 # A class for producing imputed data sets
@@ -164,8 +165,9 @@ class mimi(object):
         if growth:
             dd = get_growth(dd)
 
+        # Get the PC scores for the imputed variable
         dbs = np.dot(dd - mn, proj)
-        dbs = np.concatenate((di.ID.values[:,None], dbs), axis=1)
+        dbs = np.concatenate((di.ID.values[:, None], dbs), axis=1)
         dbs = pd.DataFrame(dbs, columns=["ID"] + vb)
         dbs.ID = dbs.ID.astype(np.int)
 
@@ -174,9 +176,12 @@ class mimi(object):
             df.loc[:, vars], dbs, left_on="ID", right_on="ID", how="left")
 
         if self.ix == 0:
-            log.write("%d distinct subjects in imputed data\n" % dbs.ID.unique().size)
-            log.write("%d distinct subjects in cohort file data\n" % df.ID.unique().size)
-            log.write("%d distinct subjects in merged file data\n" % dx.ID.unique().size)
+            log.write("%d subjects, %d rows in imputed growth data\n" %
+                      (dbs.ID.unique().size, dbs.shape[0]))
+            log.write("%d subjects, %d rows in cohort file data\n" %
+                      (df.ID.unique().size, df.shape[0]))
+            log.write("%d subjects, %d rows in merged data\n" %
+                      (dx.ID.unique().size, dx.shape[0]))
 
         # Merge in imputed puberty variables
         for vn in "Breast_Stage_Use_Z", "log2T_use_Z":
@@ -189,20 +194,24 @@ class mimi(object):
             dd.loc[iy, vn] = dd.loc[iy, vn + "_y"]
             dx = dd.drop([vn + "_x", vn + "_y"], axis=1)
             if self.ix == 0:
-                log.write("%d distinct subjects after merging %s\n" %
-                          (dx.ID.unique().size, vn))
+                log.write("%d subjects, %d rows after merging %s\n" %
+                          (dx.ID.unique().size, dx.shape[0], vn))
 
         # Code testosterone for females, breast stage for males as zero
         dx.loc[dx.Female == 1, "log2T_use_Z"] = 0
         dx.loc[dx.Female == 0, "Breast_Stage_Use_Z"] = 0
 
         dx = dx.loc[pd.notnull(dx[bp_var]), :]
+        if self.ix == 0:
+            log.write("%d blood pressure measures prior to final merge\n" % dx.shape[0])
+            mv = pd.isnull(dx).sum(0)
+            log.write("Missing values prior to final merge:\n%s\n" % mv.to_string())
+
         self.data = dx.dropna()
 
         if self.ix == 0:
-            log.write("%d distinct subjects in merged file data\n" % self.data.dropna().ID.unique().size)
-
-        if self.ix == 0:
+            log.write("%d subjects, %d rows in final merged data\n" %
+                      (self.data.ID.unique().size, self.data.shape[0]))
             dt = self.data[["ID", bp_var]].copy()
             nf = dt.groupby("ID")[bp_var].size()
             nf = pd.DataFrame(nf)
@@ -216,7 +225,7 @@ class mimi(object):
 fml = bp_var + " ~ Female*(age_x + I(age_x**2) + I(age_x**3) + lognummeas) + C(Year) + temp_cen + School + Wealth_Z_2 + Bamako + Female:Breast_Stage_Use_Z + Male:log2T_use_Z + PregMo_Use_cen + I(PregMo_Use_cen**2) + LactMo_Use_cen + I(LactMo_Use_cen**2)"
 
 # Controls for body dimensions at time of SBP
-fmx = fml + " + HT_cen + Female*BMI_cen + "
+fmx = fml + " + HT_cen + BMI_cen + "
 
 fmx += " + " + " + ".join(vb)
 fmx += " + " + " + ".join(["HT_cen*" + x for x in vb])
@@ -249,7 +258,7 @@ else:
 imp = MI(
     mimi(),
     sm.MixedLM if mixed else sm.GEE,
-    model_args_fn=None, #model_args_fn,
+    model_args_fn=None,
     formula=fmx,
     model_kwds_fn=model_kwds_fn,
     fit_kwds=fit_kwds_fn,
@@ -257,7 +266,58 @@ imp = MI(
     nrep=20,
     skip=0)
 
+if (impvar == "BMI") and (ndim == 1) and (mixed == True) and (growth == False):
+
+    import json
+    f = open("centering.json")
+    centering = json.load(f)
+    f.close()
+
+    # Create a table 1, based on counting people
+    m = mimi()
+    m.update()
+    x = m.data.copy()
+    x["temp"] = x["temp_cen"] + cenv["temp"]
+    x["BMI"] = x["BMI_cen"] + cenv["BMI"]
+    x["HT"] = x["HT_cen"] + cenv["HT"]
+    x["NumMeas"] = 10**(x.lognummeas)
+    ms = centering["log2T_use"]
+    x["Testosterone"] = 2**(x.log2T_use_Z * ms[1] + ms[0])
+    ms = centering["Breast_Stage_Use"]
+    x["Breast_Stage"] = x.Breast_Stage_Use_Z * ms[1] + ms[0]
+    x = x.sort_values(by=["ID", "Age"])
+    first = x.groupby("ID").head(1)
+    last = x.groupby("ID").tail(1)
+    stats = ["Age", "SBP_MEAN", "HT", "BMI", "Bamako", "School", "NumMeas", "temp",
+             "Wealth_Z_2", "Breast_Stage", "Testosterone"]
+    def q10(x):
+        return x.quantile(0.1)
+    def q90(x):
+        return x.quantile(0.9)
+    stats = {v: [len, np.mean, q10, q90] for v in stats}
+    astats = []
+    for dz in first, last:
+        for female in 0, 1:
+            dx = dz.loc[dz.Female == female, :]
+            a = dx.agg(stats)
+            a = a.T
+            a["Female"] = female
+            a["Visit"] = "first" if dz is first else "last"
+            astats.append(a)
+    astats = pd.concat(astats, axis=0)
+    astats = astats.rename(columns={"mean": "Mean", "len": "N"})
+    sname = "%s_table1.csv" % bp_var
+    sname = sname.lower()
+    sname = sname.replace("mean_", "")
+    astats.to_csv(sname)
+
+    # Table based on observations
+    y = x.groupby(["Female", "Bamako"]).ID.agg(len)
+
 rslt = imp.fit(results_cb=lambda x: x)
+
+mm = rslt.results[0].model
+nobs = sum([x.shape[1] for x in mm.exog_vc.mats[0]])
 
 if mixed:
     ic = [x.llf for x in rslt.results]
@@ -267,13 +327,14 @@ else:
 sca = [x.scale for x in rslt.results]
 
 out.write("%s\n" % impvar_full)
-out.write("%d distinct subjects\n" % df.ID.unique().size)
+out.write("%d distinct subjects\n" % nobs)
+out.write("%d distinct mothers\n" % mm.n_groups)
 out.write("mean IC %f\n" % np.mean(ic))
 out.write("mean scale %f\n" % np.mean(sca))
 out.write(rslt.summary().as_text())
 
 # Save the coefficient trajectories
-vb1 = ["HT_cen", "BMI_cen", "Female:BMI_cen"] + vb + ["HT_cen:%s" % y for y in vb] + ["BMI_cen:%s" % y for y in vb]
+vb1 = ["HT_cen", "BMI_cen"] + vb + ["HT_cen:%s" % y for y in vb] + ["BMI_cen:%s" % y for y in vb]
 mp = rslt.params
 cm = rslt.cov_params()
 xn = rslt.model.exog_names
@@ -288,11 +349,17 @@ out.write("BEGIN-PROJECTION\n")
 for k in range(proj.shape[0]):
     out.write(",".join([str(x) for x in proj[k, :]]) + "\n")
 out.write("--\n")
+
+# Save the average within-imputation variance of the growth variable at each age.
 for v in np.diag(cov):
     out.write("%f\n" % v)
 out.write("--\n")
+
+# Save some of the estimated model parameters that we need later
 out.write(mp.to_csv())
 out.write("--\n")
+
+# Save the covariance (sampling uncertainty) for the key model parameters
 out.write(cm.to_csv())
 out.write("END-PROJECTION\n\n")
 
