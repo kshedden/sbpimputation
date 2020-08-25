@@ -17,35 +17,39 @@ dims = [1, 2]
 
 out = open(os.path.join(bp_dir, "mixed", "opt_dim.txt"), "w")
 out.write("```\n")
-out.write("Outcome              LL                            AIC                                  Dimension\n")
+out.write("          Outcome                            LL                          AIC                   Dimension\n")
 for va in vars:
-    for growth in False, True:
+    for controlcbs in False, True:
+        for dadbp in False, True:
 
-        if growth and "Z" in va:
-            continue
+            ll = []
+            for d in dims:
 
-        vr = " growth" if growth else ""
+                fn = os.path.join(bp_dir, "mixed", "dim_%d" % d, "%s_nocontrolcbs_nodadbp.txt" % va)
+                if controlcbs:
+                    fn = fn.replace("nocontrolcbs", "controlcbs")
+                if dadbp:
+                    fn = fn.replace("nodadbp", "dadbp")
+                fid = open(fn)
+                for line in fid:
+                    if line.startswith("mean IC"):
+                        ll.append(float(line.split()[2]))
+                        break
 
-        ll = []
-        for d in dims:
+            if len(ll) != len(dims):
+                1/0
 
-            fn = os.path.join(bp_dir, "mixed", "dim_%d" % d, "%s%s.txt" % (va, "_growth" if growth else ""))
-            fid = open(fn)
-            for line in fid:
-                if line.startswith("mean IC"):
-                    ll.append(float(line.split()[2]))
+            ll = np.asarray(ll)
 
-        if len(ll) != len(dims):
-            1/0
+            # Convert to AIC
+            aic = ll - 3 * np.arange(len(dims))
 
-        ll = np.asarray(ll)
+            icm = np.argmax(aic)
 
-        # Convert to AIC
-        aic = ll - 3 * np.arange(len(dims))
+            l1 = "control" if controlcbs else "no control"
+            l2 = "dadbp" if dadbp else "no dadbp"
 
-        icm = np.argmax(aic)
-
-        out.write("%-20s %-20s %-20s %10d\n" % (va + vr, ll, aic, icm + 1))
+            out.write("%-5s %-12s %-10s %-20s %-20s %10d\n" % (va, l1, l2, ll, aic, icm + 1))
 
 out.write("```\n")
 out.close()

@@ -8,7 +8,7 @@ log = open("data_tools.log", "w")
 centering = {}
 
 # Read the cohort file
-pa = "/nfs/kshedden/Beverly_Strassmann/Cohort_2019.csv.gz"
+pa = "/nfs/kshedden/Beverly_Strassmann/Cohort_2020.csv.gz"
 df = pd.read_csv(pa)
 log.write("Original file:\n    %d distinct subjects, %d records\n" %
           (df.ID.unique().size, df.shape[0]))
@@ -24,11 +24,20 @@ df["Sex"] = df.groupby("ID")["Sex"].transform(f)
 df["Sex"] = df["Sex"].replace({0: "Female", 1: "Male"})
 df["Female"] = df["Sex"].replace({"Female": 1, "Male": 0})
 df["Age"] = np.around(df.Age_Yrs, 3)
-df["HAZ"] = df.HAZ_18
-df["BAZ"] = df.BAZ_18
-df["WAZ"] = df.WAZ_18
-df["BMI"] = df.BMI_18
-df["HT"] = df["Ht_Ave_18"]
+df["HAZ"] = df.HAZ
+df["BAZ"] = df.BAZ
+df["WAZ"] = df.WAZ
+df["BMI"] = df.BMI
+df["HT"] = df["Ht_Ave_Use"]
+df["School"] = df["School_Use"]
+df["lognummeas"] = df["lognummeas_BASE10"]
+df["Mom_BMI"] = df["F0_Mom_BMI"]
+df["Dad_BMI"] = df["F0_Dad_BMI"]
+df["MomIdUnique"] = df["F0_MomID.Unique"]
+df["Mom_Ht_Ave"] = df["F0_Mom_Ht_Ave"]
+df["Dad_Ht_Ave"] = df["F0_Dad_Ht_Ave"]
+df["Mom_SBP_Z_Res_USE"] = df["F0_Mom_SBP_Z_Res_USE"]
+df["Dad_SBP_Z_Res_USE"] = df["F0_Dad_SBP_Z_Res_USE"]
 
 # Drop people with no Ht data
 x = df[["ID", "HT", "Age"]].dropna()
@@ -93,4 +102,3 @@ def get_data(female, impvar, others=None):
 f = open("centering.json", "w")
 json.dump(centering, f)
 f.close()
-

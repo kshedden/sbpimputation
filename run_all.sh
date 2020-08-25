@@ -2,21 +2,27 @@
 
 if [ -z "$1" ]
 then
-    echo "Required arguments: [sbp|dbp] [gee|mixed]"
+    echo "Required arguments: [sbp|dbp]"
     exit 1
 fi
 
-if [ -z "$2" ]
-then
-    echo "Required arguments: [sbp|dbp] [gee|mixed]"
-    exit 1
-fi
+python run_sbp_pca.py $1 1 controlcbs dadbp >& t1
+python run_sbp_pca.py $1 1 nocontrolcbs dadbp >& t2
+python run_sbp_pca.py $1 1 controlcbs nodadbp >& t3
+python run_sbp_pca.py $1 1 nocontrolcbs nodadbp >& t4
 
-bash sbp_pca.sh $1 $2 1 growth >&t1
-bash sbp_pca.sh $1 $2 1 nogrowth >&t2
-python plot_coeff_traj_pca.py $1 $2 1 >&t3
+python run_sbp_pca_sex.py $1 1 controlcbs dadbp female >& t5
+python run_sbp_pca_sex.py $1 1 nocontrolcbs dadbp female >& t6
+python run_sbp_pca_sex.py $1 1 controlcbs nodadbp female >& t7
+python run_sbp_pca_sex.py $1 1 nocontrolcbs nodadbp female >& t8
 
-bash sbp_pca.sh $1 $2 2 growth >&t6
-bash sbp_pca.sh $1 $2 2 nogrowth >&t7
-python plot_coeff_traj_pca.py $1 $2 2 >&t8
+python run_sbp_pca_sex.py $1 1 controlcbs dadbp male >& t9
+python run_sbp_pca_sex.py $1 1 nocontrolcbs dadbp male >& t10
+python run_sbp_pca_sex.py $1 1 controlcbs nodadbp male >& t11
+python run_sbp_pca_sex.py $1 1 nocontrolcbs nodadbp male >& t12
+
+python run_sbp_pca.py $1 2 controlcbs dadbp >& t13
+python run_sbp_pca.py $1 2 nocontrolcbs dadbp >& t14
+python run_sbp_pca.py $1 2 controlcbs nodadbp >& t15
+python run_sbp_pca.py $1 2 nocontrolcbs nodadbp >& t16
 

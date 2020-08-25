@@ -21,15 +21,21 @@ bp_dir = bp_var
 
 ndim = int(sys.argv[2])
 
+dadbp = (sys.argv[3] == "dadbp")
+
 # Select the reference category
 sfx = "_1_3"
 
 # Could make this more general
-fname = "%s/mixed/dim_%d/growth_patterns%s.txt" % (bp_var, ndim, sfx)
+fname = "%s/mixed/dim_%d/growth_patterns_controlcbs_nodadbp%s.txt" % (bp_var, ndim, sfx)
+if dadbp:
+    fname = fname.replace("nodadbp", "dadbp")
 print("Reading %s\n" % fname)
 fid = open(fname)
 
-pdf = PdfPages("%s/mixed/dim_%d/growth_patterns_plot%s.pdf" % (bp_var, ndim, sfx))
+pname = fname.replace("patterns_", "patterns_plot_")
+pname = pname.replace(".txt", ".pdf")
+pdf = PdfPages(pname)
 
 lb = ["1→1", "0→1", "1→0", "0→0", "-1→0", "0→-1", "-1→-1"]
 
@@ -42,7 +48,7 @@ syms = ['s', 'o', 'x', '+', 'D', '>', '<']
 
 next(fid) # Skip initial ```
 
-fq = norm.ppf(1 - 0.025/14)
+fq = norm.ppf(1 - 0.025)
 
 while True:
 
@@ -97,10 +103,10 @@ while True:
     for i, j in enumerate(jj):
         if j < len(syms):
             plt.plot([j, j], [tab.Est[i]-fq*tab.SE[i], tab.Est[i]+fq*tab.SE[i]],
-                color=cols[i%len(syms)], lw=4, label=lb[j])
+                color=cols[i%len(syms)], lw=4, label=lb[j], solid_capstyle="butt")
         else:
             plt.plot([j, j], [tab.Est[i]-fq*tab.SE[i], tab.Est[i]+fq*tab.SE[i]],
-                color=cols[i%len(syms)], lw=4)
+                color=cols[i%len(syms)], lw=4, solid_capstyle="butt")
 #        if tab.SE[i] != 0:
 #            dl = {"mfc": "none", "color": cols[i%len(syms)], "ms": 7}
 #            if j < len(syms):
