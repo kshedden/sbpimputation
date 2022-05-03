@@ -1,8 +1,17 @@
 import numpy as np
 import pandas as pd
 import os
+from data_tools import df
 
-def do_pca(impvar, ndim, bp_dir, plot=False):
+sexm = {"female": [], "male": []}
+for i in range(df.shape[0]):
+    r = df.iloc[i, :]
+    sexm[r["Sex"].lower()].append(r["ID"])
+for sex in "female", "male":
+    sexm[sex] = set(sexm[sex])
+
+
+def do_pca(impvar, ndim, sex, bp_dir, plot=False):
 
     # The variable names for the trajectory of childhood exposures
     vx = [(impvar + "%d") % a for a in range(1, 11)]
@@ -18,6 +27,7 @@ def do_pca(impvar, ndim, bp_dir, plot=False):
     for k in range(20):
         di = pd.read_csv(os.path.join("imputed_data", "%s_imp_%d.csv" % (impvar, k)))
         di["ID"] = di["ID"].astype(np.int)
+        di = di.loc[di.ID.isin(sexm[sex]), :]
         dd = di[vx]
         mn += dd.mean(0)
         cov += np.cov(dd.T)
@@ -28,12 +38,15 @@ def do_pca(impvar, ndim, bp_dir, plot=False):
     xsd = np.sqrt(np.diag(cov))
     cor = cov / np.outer(xsd, xsd)
     cm = cor - 0.2*np.dot(fx.T, fx)
-    b, proj = np.linalg.eig(cm)
+    b, proj = np.linalg.eigh(cm)
     ii = np.argsort(b)[::-1]
     b = b[ii]
     proj = proj[:, ii]
     b = b[0:ndim]
     proj = proj[:, 0:ndim]
+    for j in range(ndim):
+        if sum(proj[:, j] < 0) > sum(proj[:, j] > 0):
+            proj[:, j] = -proj[:, j]
     proj = proj / xsd[:, None]
     if np.any(b < 0):
         1/0
@@ -42,7 +55,7 @@ def do_pca(impvar, ndim, bp_dir, plot=False):
     import matplotlib.pyplot as plt
     from matplotlib.backends.backend_pdf import PdfPages
     d = "mixed"
-    pdf = PdfPages(os.path.join(bp_dir, d, "dim_%d" % ndim, "%s_basis.pdf" % impvar))
+    pdf = PdfPages(os.path.join(bp_dir, d, "dim_%d" % ndim, "%s_%s_basis.pdf" % (impvar, sex)))
     plt.clf()
     plt.title("%s basis functions" % impvar)
     plt.grid(True)

@@ -8,7 +8,7 @@ log = open("data_tools.log", "w")
 centering = {}
 
 # Read the cohort file
-pa = "/nfs/kshedden/Beverly_Strassmann/Cohort_2020.csv.gz"
+pa = "/home/kshedden/data/Beverly_Strassmann/Cohort_2021.csv.gz"
 df = pd.read_csv(pa)
 log.write("Original file:\n    %d distinct subjects, %d records\n" %
           (df.ID.unique().size, df.shape[0]))
@@ -72,8 +72,10 @@ age_mean = df.Age.mean()
 age_sd = df.Age.std()
 df["AgeZ"] = (df.Age - age_mean) / age_sd
 
-df["Pregnant"] = df.ReproStat.isin([2, 4])
-df["Lactating"] = df.ReproStat.isin([3])
+df["Pregnant"] = df.ReproStat_Corr.isin([2, 4])
+df["Lactating"] = df.ReproStat_Corr.isin([3])
+
+df["Stimulant_No_PerWeek"] = df["Stimulant_No_PerWeek"].fillna(0)
 
 # Require people to have at least one SBP measurement
 idx = df.loc[pd.notnull(df.SBP_MEAN), :].groupby("ID").head(1)["ID"]
@@ -102,3 +104,6 @@ def get_data(female, impvar, others=None):
 f = open("centering.json", "w")
 json.dump(centering, f)
 f.close()
+
+df["datecomb"] = pd.to_datetime(df["datecomb"])
+df = df.sort_values(by=["ID", "datecomb"])

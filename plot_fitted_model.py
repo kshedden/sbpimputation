@@ -26,7 +26,7 @@ for vn in allowed_controls:
     for controlcbs in False, True:
         for dadbp in False, True:
 
-            fn = os.path.join(bp_dir, tr, "dim_%d" % dim, "%s_nocontrolcbs_nodadbp.txt" % vn)
+            fn = os.path.join(bp_dir, tr, "dim_%d" % dim, "%s_nocontrolcbs_nodadbp_adj_female.txt" % vn)
             if controlcbs:
                 fn = fn.replace("nocontrolcbs", "controlcbs")
             if dadbp:

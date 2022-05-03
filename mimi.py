@@ -46,22 +46,22 @@ class mimi(object):
                       (dx.ID.unique().size, dx.shape[0]))
 
         # Merge in imputed puberty variables
-        for vn in "Breast_Stage_Use_Z", "log2T_use_Z":
-            dd = pd.read_csv(os.path.join("imputed_data_puberty", "%s_imp_%d.csv" % (vn, self.ix)))
-            dd = pd.merge(dx, dd, left_on=("ID", "Age"), right_on=("ID", "Age"), how="left")
-            ix = pd.notnull(dd[vn + "_x"])
-            iy = pd.notnull(dd[vn + "_y"])
-            dd[vn] = np.nan
-            dd.loc[ix, vn] = dd.loc[ix, vn + "_x"]
-            dd.loc[iy, vn] = dd.loc[iy, vn + "_y"]
-            dx = dd.drop([vn + "_x", vn + "_y"], axis=1)
-            if self.ix == 0:
-                self.log.write("%d subjects, %d rows after merging %s\n" %
-                          (dx.ID.unique().size, dx.shape[0], vn))
+        #for vn in "Breast_Stage_Use_Z", "log2T_use_Z":
+        #    dd = pd.read_csv(os.path.join("imputed_data_puberty", "%s_imp_%d.csv" % (vn, self.ix)))
+        #    dd = pd.merge(dx, dd, left_on=("ID", "Age"), right_on=("ID", "Age"), how="left")
+        #    ix = pd.notnull(dd[vn + "_x"])
+        #    iy = pd.notnull(dd[vn + "_y"])
+        #    dd[vn] = np.nan
+        #    dd.loc[ix, vn] = dd.loc[ix, vn + "_x"]
+        #    dd.loc[iy, vn] = dd.loc[iy, vn + "_y"]
+        #    dx = dd.drop([vn + "_x", vn + "_y"], axis=1)
+        #    if self.ix == 0:
+        #        self.log.write("%d subjects, %d rows after merging %s\n" %
+        #                  (dx.ID.unique().size, dx.shape[0], vn))
 
         # Code testosterone for females, breast stage for males as zero
-        dx.loc[dx.Female == 1, "log2T_use_Z"] = 0
-        dx.loc[dx.Female == 0, "Breast_Stage_Use_Z"] = 0
+        #dx.loc[dx.Female == 1, "log2T_use_Z"] = 0
+        #dx.loc[dx.Female == 0, "Breast_Stage_Use_Z"] = 0
 
         dx = dx.loc[pd.notnull(dx[self.bp_var]), :]
         if self.ix == 0:

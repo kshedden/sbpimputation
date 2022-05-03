@@ -56,6 +56,8 @@ df["age_x"] = (df.Age - 10) / 10
 df["ID"] = df["ID"].astype(np.int)
 
 df.loc[df.Bamako==1, "Village"] = 50
+df = df.loc[pd.notnull(df["Village"]), :]
+df["Village"] = df["Village"].astype(np.int)
 
 df = df.rename(columns={
     "MomID.Unique": "MomIdUnique",
@@ -66,7 +68,7 @@ varls = [
     "ID", bp_var, "age_cen", "age_x", "Age", "Female",
     "Male", "BMI_cen", "HT_cen", "Year", "lognummeas", "temp_cen", "School",
     "Wealth_Z_2", "MomIdUnique", "log2T_use_Z", "Breast_Stage_Use_Z",
-    "PregMo_Use_cen", "LactMo_Use_cen", "Village",
+    "PregMo_Use_cen", "lactMo_Use_cen", "Village",
 ]
 
 varls += ["Mom_BMI", "Mom_Ht_Ave", "Mom_SBP_Z_Res_USE"]
@@ -77,12 +79,12 @@ if dadbp:
 # These are missing for males
 ii = (df.Female == 0)
 df.loc[ii, "PregMo_Use"] = df.PregMo_Use[ii].fillna(0)
-df.loc[ii, "LactMo_Use"] = df.LactMo_Use[ii].fillna(0)
+df.loc[ii, "lactMo_Use"] = df.lactMo_Use[ii].fillna(0)
 
-df["LactMo_Use"] = df["LactMo_Use"].fillna(0)
+df["lactMo_Use"] = df["lactMo_Use"].fillna(0)
 
-cenv["LactMo"] = df.LactMo_Use.mean()
-df["LactMo_Use_cen"] = df.LactMo_Use - cenv["LactMo"]
+cenv["lactMo"] = df.lactMo_Use.mean()
+df["lactMo_Use_cen"] = df.lactMo_Use - cenv["lactMo"]
 cenv["PregMo"] = df.PregMo_Use.mean()
 df["PregMo_Use_cen"] = df.PregMo_Use - cenv["PregMo"]
 
@@ -102,9 +104,9 @@ log = open(os.path.join(bp_dir, d1, d2, "%s.log" % impvar), "w")
 
 mn, cov, proj, vb, vx = do_pca(impvar, ndim, bp_dir)
 
-fml = bp_var + " ~ Female*(age_x + I(age_x**2) + I(age_x**3) + lognummeas) + C(Year) + temp_cen + School + Wealth_Z_2 + Female:Breast_Stage_Use_Z + Male:log2T_use_Z + PregMo_Use_cen + I(PregMo_Use_cen**2) + LactMo_Use_cen"
+fml = bp_var + " ~ Female*(age_x + I(age_x**2) + I(age_x**3) + lognummeas) + C(Year) + temp_cen + School + Wealth_Z_2 + Female:Breast_Stage_Use_Z + Male:log2T_use_Z + PregMo_Use_cen + I(PregMo_Use_cen**2) + lactMo_Use_cen"
 
-fml += " + C(Village) + Mom_BMI + Mom_Ht_Ave + Mom_SBP_Z_Res_USE"
+fml += " + C(Village, Treatment(reference=50)) + Mom_BMI + Mom_Ht_Ave + Mom_SBP_Z_Res_USE"
 
 if dadbp:
     fml += " + Dad_BMI + Dad_Ht_Ave + Dad_SBP_Z_Res_USE"
